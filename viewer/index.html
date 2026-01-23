@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portable Effects Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 280px;
+            max-width: 320px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+        }
+
+        #controls h2 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .param-group {
+            margin-bottom: 12px;
+        }
+
+        .param-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .param-name {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .param-value {
+            font-size: 11px;
+            color: #888;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .param-slider {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .param-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .param-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        #status {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 12px;
+            color: #888;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+        }
+
+        #status.error {
+            color: #ff6b6b;
+            border-color: rgba(255, 107, 107, 0.3);
+        }
+
+        #status.success {
+            color: #69db7c;
+        }
+
+        .effect-name {
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .effect-description {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        #reload-btn {
+            background: #333;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 16px;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        #reload-btn:hover {
+            background: #444;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="controls">
+        <h2>Effect Parameters</h2>
+        <div class="effect-name" id="effect-name">Loading...</div>
+        <div class="effect-description" id="effect-description"></div>
+        <div id="params"></div>
+        <button id="reload-btn">↻ Reload Effect</button>
+    </div>
+
+    <div id="status">Initializing...</div>
+
+    <script type="module">
+        import { CanvasRenderer, registerEffect as registerEffectGlobal, registerOp, registerStarterOps } from './vendor/noisemaker-shaders-core.esm.js';
+
+        // State
+        let renderer = null;
+        let effectDef = null;
+        let paramValues = {};
+        let lastModified = null;
+
+        const canvas = document.getElementById('canvas');
+        const statusEl = document.getElementById('status');
+        const paramsEl = document.getElementById('params');
+        const effectNameEl = document.getElementById('effect-name');
+        const effectDescEl = document.getElementById('effect-description');
+        const reloadBtn = document.getElementById('reload-btn');
+
+        // Set canvas size to match viewport
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+
+            if (renderer) {
+                renderer.resize(width, height);
+            }
+        }
+
+        // Load effect definition from JSON
+        async function loadEffectDefinition() {
+            try {
+                const response = await fetch('../effect/definition.json', { cache: 'no-store' });
+                if (!response.ok) throw new Error('Failed to load effect definition');
+                
+                const newModified = response.headers.get('Last-Modified');
+                const def = await response.json();
+                
+                // Load shader source
+                const glslResponse = await fetch(`../effect/glsl/${def.passes[0].program}.glsl`, { cache: 'no-store' });
+                if (!glslResponse.ok) throw new Error('Failed to load GLSL shader');
+                const glslSource = await glslResponse.text();
+                
+                // Embed shaders into definition
+                def.shaders = def.shaders || {};
+                def.shaders[def.passes[0].program] = { glsl: glslSource };
+                
+                lastModified = newModified;
+                return def;
+            } catch (err) {
+                throw new Error(`Failed to load effect: ${err.message}`);
+            }
+        }
+
+        // Build and render param controls
+        function renderParamControls(def) {
+            effectNameEl.textContent = `${def.namespace}.${def.func}`;
+            effectDescEl.textContent = def.description || '';
+            
+            paramsEl.innerHTML = '';
+            const globals = def.globals || {};
+            
+            for (const [name, spec] of Object.entries(globals)) {
+                // Initialize value if not set
+                if (paramValues[name] === undefined) {
+                    paramValues[name] = spec.default ?? 0;
+                }
+                
+                const group = document.createElement('div');
+                group.className = 'param-group';
+                
+                const label = document.createElement('div');
+                label.className = 'param-label';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'param-name';
+                nameSpan.textContent = name;
+                
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'param-value';
+                valueSpan.textContent = paramValues[name].toFixed(2);
+                
+                label.appendChild(nameSpan);
+                label.appendChild(valueSpan);
+                
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.className = 'param-slider';
+                slider.min = spec.min ?? 0;
+                slider.max = spec.max ?? 1;
+                slider.step = spec.step ?? 0.01;
+                slider.value = paramValues[name];
+                slider.dataset.param = name;
+                
+                slider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    paramValues[name] = val;
+                    valueSpan.textContent = val.toFixed(2);
+                    
+                    // Update uniform
+                    if (renderer) {
+                        renderer.setUniform(name, val);
+                    }
+                });
+                
+                group.appendChild(label);
+                group.appendChild(slider);
+                paramsEl.appendChild(group);
+            }
+        }
+
+        // Compile and run effect
+        async function compileAndRun() {
+            try {
+                effectDef = await loadEffectDefinition();
+                
+                const namespace = effectDef.namespace;
+                const name = effectDef.func;
+                const opName = `${namespace}.${name}`;
+                
+                // Build args from globals
+                const globals = effectDef.globals || {};
+                const args = Object.entries(globals).map(([uname, udef]) => ({
+                    name: uname,
+                    type: udef.type === 'vec4' ? 'color' : (udef.type || 'float'),
+                    default: udef.default ?? 0,
+                    min: udef.min,
+                    max: udef.max,
+                    uniform: udef.uniform || uname
+                }));
+                
+                // Register as op
+                const opSpec = { name: name, args: args };
+                registerOp(opName, opSpec);
+                registerStarterOps([opName]);
+                
+                // Create effect instance
+                const instance = {
+                    name: effectDef.name,
+                    namespace: namespace,
+                    func: name,
+                    description: effectDef.description,
+                    tags: effectDef.tags || [],
+                    globals: globals,
+                    passes: effectDef.passes || [],
+                    shaders: effectDef.shaders || {},
+                    starter: effectDef.starter || false
+                };
+                
+                // Register effect
+                registerEffectGlobal(opName, instance);
+                registerEffectGlobal(`${namespace}/${name}`, instance);
+                
+                console.log('Registered effect:', opName, instance);
+                
+                renderParamControls(effectDef);
+                
+                // Build DSL with required search directive
+                const dsl = `search ${effectDef.namespace}\n${effectDef.func}().write(o0)\nrender(o0)`;
+                
+                // Compile - throws on error
+                await renderer.compile(dsl);
+                
+                // Apply param values as uniforms
+                for (const [name, value] of Object.entries(paramValues)) {
+                    renderer.setUniform(name, value);
+                }
+                
+                setStatus(`Loaded: ${effectDef.namespace}.${effectDef.func}`, 'success');
+            } catch (err) {
+                let errorMsg = 'Unknown error';
+                if (err && typeof err === 'object') {
+                    if (err.diagnostics && Array.isArray(err.diagnostics)) {
+                        errorMsg = err.diagnostics.map(d => d.message || JSON.stringify(d)).join('; ');
+                    } else if (err.message) {
+                        errorMsg = err.message;
+                    } else {
+                        errorMsg = JSON.stringify(err);
+                    }
+                } else {
+                    errorMsg = String(err);
+                }
+                setStatus(errorMsg, 'error');
+                console.error('Effect load error:', errorMsg);
+            }
+        }
+
+        // Hot reload check
+        async function checkForChanges() {
+            try {
+                const response = await fetch('../effect/definition.json', { 
+                    method: 'HEAD',
+                    cache: 'no-store' 
+                });
+                const newModified = response.headers.get('Last-Modified');
+                
+                if (lastModified && newModified !== lastModified) {
+                    setStatus('Changes detected, reloading...', 'success');
+                    await compileAndRun();
+                }
+            } catch (err) {
+                // Ignore polling errors
+            }
+        }
+
+        // Set status message
+        function setStatus(message, type = '') {
+            statusEl.textContent = message;
+            statusEl.className = type;
+        }
+
+        // Initialize
+        async function init() {
+            try {
+                setStatus('Initializing renderer...');
+                
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+                
+                renderer = new CanvasRenderer({
+                    canvas,
+                    basePath: './shaders',
+                    preferWebGPU: false,
+                    useBundles: false
+                });
+                
+                await renderer.loadManifest();
+                setStatus('Loading effect...');
+                
+                await compileAndRun();
+                
+                renderer.start();
+                
+                // Start hot reload polling
+                setInterval(checkForChanges, 1000);
+                
+            } catch (err) {
+                setStatus(`Init failed: ${err.message}`, 'error');
+                console.error(err);
+            }
+        }
+
+        // Reload button
+        reloadBtn.addEventListener('click', () => {
+            setStatus('Reloading...');
+            compileAndRun();
+        });
+
+        init();
+    </script>
+</body>
+</html>

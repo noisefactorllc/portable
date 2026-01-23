@@ -1,0 +1,6 @@
+search user
+
+example(r: 0.2, g: 0.4, b: 0.8, a: 1.0)
+  .write(o0)
+
+render(o0)
