@@ -1,5 +1,7 @@
 # Portable Effects for Noisemaker
 
+> ⚠️ **Note:** The Portable Effects specification is still being finalized and may change.
+
 **The Portable Effects Format** is an open standard for sharing shader effects across the Noise Factor ecosystem.
 
 This repository serves as the **canonical source of truth** for the Portable Effects specification.
