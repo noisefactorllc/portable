@@ -1,6 +1,6 @@
-search user
+search synth
 
-example(r: 0.2, g: 0.4, b: 0.8, a: 1.0)
+osc2d(oscType: oscType.sine, frequency: 4, speed: 2.0, rotation: 0, seed: 0)
   .write(o0)
 
 render(o0)

@@ -3,8 +3,8 @@
  * Includes: CanvasRenderer + UIController + EffectSelect
  * Copyright (c) 2017-2026 Noise Factor LLC. https://noisefactor.io/
  * SPDX-License-Identifier: MIT
- * Build: c2340c61
- * Date: 2026-01-23T05:33:11.638Z
+ * Build: caff1a08
+ * Date: 2026-01-24T00:15:27.757Z
  */
 var __typeError = (msg) => {
   throw TypeError(msg);

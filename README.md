@@ -206,9 +206,13 @@ render(o0)
 
 | Type | Namespace | Description |
 |------|-----------|-------------|
-| **Starter** | `synth` | Generates imagery from scratch (no input texture) |
-| **Filter** | `filter` | Transforms an input texture |
+| **Starter** | `synth` | Generates 2D imagery from scratch |
+| **Filter** | `filter` | Transforms a 2D input texture |
 | **Mixer** | `mixer` | Blends two input textures |
+| **3D Starter** | `synth3d` | Generates 3D volumetric data |
+| **3D Filter** | `filter3d` | Transforms 3D volumetric data |
+| **Points** | `points` | Agent/particle simulations |
+| **Render** | `render` | Rendering utilities (loops, 3D) |
 
 The `starter` field in definition.json determines whether an effect can begin a DSL chain or must receive input from another effect.
 

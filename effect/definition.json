@@ -1,46 +1,67 @@
 {
-  "name": "Example",
-  "namespace": "user",
-  "func": "example",
-  "description": "Solid color fill - example portable effect",
-  "tags": ["util", "color"],
+  "name": "Osc2D",
+  "namespace": "synth",
+  "func": "osc2d",
+  "description": "2D oscillator pattern",
+  "tags": ["geometric"],
   "starter": true,
 
   "globals": {
-    "r": {
-      "type": "float",
-      "default": 0.5,
+    "oscType": {
+      "type": "int",
+      "default": 0,
       "min": 0,
-      "max": 1,
-      "uniform": "r"
+      "max": 6,
+      "step": 1,
+      "uniform": "oscType",
+      "choices": {
+        "sine": 0,
+        "linear": 1,
+        "sawtooth": 2,
+        "sawtoothInv": 3,
+        "square": 4,
+        "noise1d": 5,
+        "noise2d": 6
+      }
     },
-    "g": {
-      "type": "float",
-      "default": 0.5,
-      "min": 0,
-      "max": 1,
-      "uniform": "g"
+    "frequency": {
+      "type": "int",
+      "default": 1,
+      "min": 1,
+      "max": 32,
+      "step": 1,
+      "uniform": "frequency"
     },
-    "b": {
+    "speed": {
       "type": "float",
-      "default": 0.5,
+      "default": 4.0,
       "min": 0,
-      "max": 1,
-      "uniform": "b"
+      "max": 10,
+      "step": 0.1,
+      "uniform": "speed"
     },
-    "a": {
+    "rotation": {
       "type": "float",
-      "default": 1.0,
+      "default": 0,
+      "min": -180,
+      "max": 180,
+      "step": 1,
+      "uniform": "rotation"
+    },
+    "seed": {
+      "type": "int",
+      "default": 0,
       "min": 0,
-      "max": 1,
-      "uniform": "a"
+      "max": 1000,
+      "step": 1,
+      "uniform": "seed"
     }
   },
 
   "passes": [
     {
-      "name": "example",
-      "program": "example",
+      "name": "main",
+      "program": "osc2d",
       "inputs": {},
       "outputs": {
         "color": "outputTex"

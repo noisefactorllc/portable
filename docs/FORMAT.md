@@ -118,10 +118,11 @@ If only one is provided, the other is inferred:
 | `user` | User-created effects | varies |
 | `synth` | 2D generators | Yes |
 | `filter` | 2D processors | No |
-| `mixer` | Blend/composite | No |
-| `sim` | Simulations with temporal state | varies |
+| `mixer` | Blend/composite operations | No |
 | `synth3d` | 3D volumetric generators | Yes |
 | `filter3d` | 3D volumetric processors | No |
+| `points` | Agent/particle simulations | Yes |
+| `render` | Rendering utilities (loops, 3D) | No |
 
 For portable effects, `user` is the recommended namespace. The effect will be registered as `user.{func}` and accessible as `user/{func}`.
 
