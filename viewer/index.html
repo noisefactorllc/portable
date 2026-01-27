@@ -176,7 +176,7 @@
     <div id="status">Initializing...</div>
 
     <script type="module">
-        import { CanvasRenderer, registerEffect as registerEffectGlobal, registerOp, registerStarterOps } from './vendor/noisemaker-shaders-core.esm.js';
+        import { CanvasRenderer, registerEffect as registerEffectGlobal, registerOp, registerStarterOps } from '/viewer/vendor/noisemaker-shaders-core.esm.js';
 
         // State
         let renderer = null;
@@ -210,14 +210,14 @@
         // Load effect definition from JSON
         async function loadEffectDefinition() {
             try {
-                const response = await fetch('../effect/definition.json', { cache: 'no-store' });
+                const response = await fetch('/effect/definition.json', { cache: 'no-store' });
                 if (!response.ok) throw new Error('Failed to load effect definition');
                 
                 const newModified = response.headers.get('Last-Modified');
                 const def = await response.json();
                 
                 // Load shader source
-                const glslResponse = await fetch(`../effect/glsl/${def.passes[0].program}.glsl`, { cache: 'no-store' });
+                const glslResponse = await fetch(`/effect/glsl/${def.passes[0].program}.glsl`, { cache: 'no-store' });
                 if (!glslResponse.ok) throw new Error('Failed to load GLSL shader');
                 const glslSource = await glslResponse.text();
                 
@@ -368,7 +368,7 @@
         // Hot reload check
         async function checkForChanges() {
             try {
-                const response = await fetch('../effect/definition.json', { 
+                const response = await fetch('/effect/definition.json', {
                     method: 'HEAD',
                     cache: 'no-store' 
                 });
@@ -410,6 +410,33 @@
                 await compileAndRun();
                 
                 renderer.start();
+                
+                // Expose globals for MCP browser harness
+                window.__portableCanvasRenderer = renderer;
+                // Use defineProperty so pipeline is always fresh
+                Object.defineProperty(window, '__portableRenderingPipeline', {
+                    get: () => renderer.pipeline,
+                    configurable: true
+                });
+                window.__portableCurrentBackend = () => {
+                    const backendName = renderer.pipeline?.backend?.getName?.() || '';
+                    return backendName.toLowerCase().includes('webgpu') ? 'wgsl' : 'glsl';
+                };
+                window.__portableSetPaused = (paused) => {
+                    if (paused) {
+                        renderer.stop();
+                    } else {
+                        renderer.start();
+                    }
+                };
+                window.__portableSetPausedTime = (time) => {
+                    renderer.render(time);
+                };
+                // Expose frame count for MCP harness frame tracking
+                Object.defineProperty(window, '__portableFrameCount', {
+                    get: () => renderer.pipeline?.frameIndex ?? 0,
+                    configurable: true
+                });
                 
                 // Start hot reload polling
                 setInterval(checkForChanges, 1000);

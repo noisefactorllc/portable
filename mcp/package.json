@@ -1,0 +1,34 @@
+{
+  "name": "@portable/shader-mcp-tools",
+  "version": "1.0.0",
+  "description": "MCP server providing shader effect testing tools for VS Code Copilot coding agent",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "portable-shader-mcp": "./server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test-harness.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2"
+  },
+  "peerDependencies": {
+    "@playwright/test": "^1.56.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "shader",
+    "webgl",
+    "webgpu",
+    "testing",
+    "copilot",
+    "portable"
+  ],
+  "author": "Noise Factor LLC <team@noisefactor.io>",
+  "license": "MIT"
+}
