@@ -39,6 +39,7 @@ import {
     checkEffectStructureOnDisk,
     checkAlgEquivOnDisk,
     analyzeBranchingOnDisk,
+    compareShadersOnDisk,
     gracePeriod
 } from './browser-harness.js'
 
@@ -255,6 +256,15 @@ const TOOLS = [
         }
     },
     {
+        name: 'compareShaders',
+        description: 'Compare GLSL and WGSL shader sources side-by-side. Returns both sources with structural analysis: shared/divergent functions, uniform matching, line counts. No browser or API key required.',
+        inputSchema: {
+            type: 'object',
+            properties: {},
+            required: []
+        }
+    },
+    {
         name: 'analyzeBranching',
         description: 'Analyze shader code for unnecessary branching that could be flattened. Uses AI to identify opportunities to reduce conditional branching. Does NOT require a browser.',
         inputSchema: {
@@ -432,6 +442,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
                 result = {
                     result: algResult
+                }
+                break
+            }
+
+            case 'compareShaders': {
+                const compareResult = await compareShadersOnDisk({})
+
+                result = {
+                    result: compareResult
                 }
                 break
             }

@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "dev": "npx serve . -l 2999",
     "package": "node package-portable.mjs"
   },
   "devDependencies": {
+    "archiver": "^7.0.0",
     "playwright": "^1.40.0",
-    "archiver": "^7.0.0"
+    "serve": "^14.2.5"
   }
 }

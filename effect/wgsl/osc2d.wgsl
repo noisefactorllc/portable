@@ -82,8 +82,8 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     var res = resolution;
     if (res.x < 1.0) { res = vec2<f32>(1024.0, 1024.0); }
     
-    // Normalized coordinates (flip y for WebGPU coordinate system)
-    var st = vec2<f32>(position.x, res.y - position.y) / res;
+    // Normalized coordinates
+    var st = position.xy / res;
     
     // Center for rotation
     st = st - 0.5;

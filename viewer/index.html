@@ -169,6 +169,15 @@
         <h2>Effect Parameters</h2>
         <div class="effect-name" id="effect-name">Loading...</div>
         <div class="effect-description" id="effect-description"></div>
+        <div id="backend-toggle" style="display:none; margin-bottom: 16px;">
+            <div class="param-name" style="margin-bottom: 6px;">Backend</div>
+            <label style="font-size: 12px; color: #ccc; margin-right: 12px; cursor: pointer;">
+                <input type="radio" name="backend" value="glsl"> WebGL
+            </label>
+            <label style="font-size: 12px; color: #ccc; cursor: pointer;">
+                <input type="radio" name="backend" value="wgsl"> WebGPU
+            </label>
+        </div>
         <div id="params"></div>
         <button id="reload-btn">↻ Reload Effect</button>
     </div>
@@ -183,8 +192,11 @@
         let effectDef = null;
         let paramValues = {};
         let lastModified = null;
+        let hasGlsl = false;
+        let hasWgsl = false;
+        let currentBackend = 'glsl';
 
-        const canvas = document.getElementById('canvas');
+        let canvas = document.getElementById('canvas');
         const statusEl = document.getElementById('status');
         const paramsEl = document.getElementById('params');
         const effectNameEl = document.getElementById('effect-name');
@@ -216,14 +228,34 @@
                 const newModified = response.headers.get('Last-Modified');
                 const def = await response.json();
                 
-                // Load shader source
-                const glslResponse = await fetch(`/effect/glsl/${def.passes[0].program}.glsl`, { cache: 'no-store' });
-                if (!glslResponse.ok) throw new Error('Failed to load GLSL shader');
-                const glslSource = await glslResponse.text();
-                
-                // Embed shaders into definition
+                // Load shader sources (try both GLSL and WGSL)
+                const programs = (def.passes || []).map(p => p.program);
                 def.shaders = def.shaders || {};
-                def.shaders[def.passes[0].program] = { glsl: glslSource };
+
+                for (const program of programs) {
+                    def.shaders[program] = {};
+
+                    // Try GLSL
+                    try {
+                        const glslResponse = await fetch(`/effect/glsl/${program}.glsl`, { cache: 'no-store' });
+                        if (glslResponse.ok) {
+                            def.shaders[program].glsl = await glslResponse.text();
+                        }
+                    } catch (e) { /* not available */ }
+
+                    // Try WGSL
+                    try {
+                        const wgslResponse = await fetch(`/effect/wgsl/${program}.wgsl`, { cache: 'no-store' });
+                        if (wgslResponse.ok) {
+                            def.shaders[program].wgsl = await wgslResponse.text();
+                        }
+                    } catch (e) { /* not available */ }
+
+                    // At least one must succeed
+                    if (!def.shaders[program].glsl && !def.shaders[program].wgsl) {
+                        throw new Error(`No shader found for program "${program}" (checked glsl/${program}.glsl and wgsl/${program}.wgsl)`);
+                    }
+                }
                 
                 lastModified = newModified;
                 return def;
@@ -289,11 +321,39 @@
             }
         }
 
+        let backendsInitialized = false;
+
+        function detectBackends(def) {
+            hasGlsl = false;
+            hasWgsl = false;
+            for (const program of Object.keys(def.shaders || {})) {
+                if (def.shaders[program].glsl) hasGlsl = true;
+                if (def.shaders[program].wgsl) hasWgsl = true;
+            }
+
+            const toggle = document.getElementById('backend-toggle');
+            if (hasGlsl && hasWgsl) {
+                toggle.style.display = '';
+                // Only set default on first load; preserve user choice on hot-reload
+                if (!backendsInitialized) {
+                    currentBackend = 'glsl';
+                    backendsInitialized = true;
+                }
+            } else {
+                toggle.style.display = 'none';
+                currentBackend = hasWgsl ? 'wgsl' : 'glsl';
+            }
+
+            const radios = document.querySelectorAll('input[name="backend"]');
+            radios.forEach(r => { r.checked = r.value === currentBackend; });
+        }
+
         // Compile and run effect
         async function compileAndRun() {
             try {
                 effectDef = await loadEffectDefinition();
-                
+                detectBackends(effectDef);
+
                 const namespace = effectDef.namespace;
                 const name = effectDef.func;
                 const opName = `${namespace}.${name}`;
@@ -346,7 +406,7 @@
                     renderer.setUniform(name, value);
                 }
                 
-                setStatus(`Loaded: ${effectDef.namespace}.${effectDef.func}`, 'success');
+                setStatus(`Loaded: ${effectDef.namespace}.${effectDef.func} (${currentBackend === 'wgsl' ? 'WebGPU' : 'WebGL'})`, 'success');
             } catch (err) {
                 let errorMsg = 'Unknown error';
                 if (err && typeof err === 'object') {
@@ -389,30 +449,51 @@
             statusEl.className = type;
         }
 
+        async function initRenderer() {
+            if (renderer) {
+                renderer.stop();
+            }
+            // Replace canvas — a canvas can only hold one context type (WebGL or WebGPU)
+            const oldCanvas = canvas;
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = 'canvas';
+            newCanvas.style.width = oldCanvas.style.width;
+            newCanvas.style.height = oldCanvas.style.height;
+            newCanvas.width = oldCanvas.width;
+            newCanvas.height = oldCanvas.height;
+            oldCanvas.parentNode.replaceChild(newCanvas, oldCanvas);
+            canvas = newCanvas;
+
+            renderer = new CanvasRenderer({
+                canvas,
+                basePath: '/shaders',
+                preferWebGPU: currentBackend === 'wgsl',
+                useBundles: false
+            });
+            await renderer.loadManifest();
+        }
+
         // Initialize
         async function init() {
             try {
                 setStatus('Initializing renderer...');
-                
+
                 resizeCanvas();
                 window.addEventListener('resize', resizeCanvas);
-                
-                renderer = new CanvasRenderer({
-                    canvas,
-                    basePath: './shaders',
-                    preferWebGPU: false,
-                    useBundles: false
-                });
-                
-                await renderer.loadManifest();
+
+                await initRenderer();
                 setStatus('Loading effect...');
-                
+
                 await compileAndRun();
-                
+
                 renderer.start();
-                
+
                 // Expose globals for MCP browser harness
-                window.__portableCanvasRenderer = renderer;
+                // Use defineProperty so renderer reference stays current after backend switching
+                Object.defineProperty(window, '__portableCanvasRenderer', {
+                    get: () => renderer,
+                    configurable: true
+                });
                 // Use defineProperty so pipeline is always fresh
                 Object.defineProperty(window, '__portableRenderingPipeline', {
                     get: () => renderer.pipeline,
@@ -437,10 +518,20 @@
                     get: () => renderer.pipeline?.frameIndex ?? 0,
                     configurable: true
                 });
-                
+
+                // Backend toggle event listeners
+                document.querySelectorAll('input[name="backend"]').forEach(radio => {
+                    radio.addEventListener('change', async (e) => {
+                        currentBackend = e.target.value;
+                        await initRenderer();
+                        await compileAndRun();
+                        renderer.start();
+                    });
+                });
+
                 // Start hot reload polling
                 setInterval(checkForChanges, 1000);
-                
+
             } catch (err) {
                 setStatus(`Init failed: ${err.message}`, 'error');
                 console.error(err);

@@ -1328,6 +1328,105 @@ Are these implementations algorithmically equivalent?`
 }
 
 /**
+ * Compare GLSL and WGSL shader sources side-by-side with structural analysis.
+ * No AI or browser required.
+ *
+ * @param {object} options
+ * @returns {Promise<object>}
+ */
+export async function compareShaders(options = {}) {
+    const effectDir = path.join(PROJECT_ROOT, 'effect')
+    const glslDir = path.join(effectDir, 'glsl')
+    const wgslDir = path.join(effectDir, 'wgsl')
+
+    let glslFiles = []
+    let wgslFiles = []
+
+    try {
+        glslFiles = fs.readdirSync(glslDir).filter(f => f.endsWith('.glsl'))
+    } catch { /* no glsl dir */ }
+
+    try {
+        wgslFiles = fs.readdirSync(wgslDir).filter(f => f.endsWith('.wgsl'))
+    } catch { /* no wgsl dir */ }
+
+    if (glslFiles.length === 0 && wgslFiles.length === 0) {
+        return { status: 'error', pairs: [], summary: 'No shader files found' }
+    }
+
+    // Build set of all program names
+    const allPrograms = new Set()
+    for (const f of glslFiles) allPrograms.add(f.replace('.glsl', ''))
+    for (const f of wgslFiles) allPrograms.add(f.replace('.wgsl', ''))
+
+    const pairs = []
+
+    for (const program of allPrograms) {
+        const pair = { program, glsl: null, wgsl: null, analysis: {} }
+
+        // Read GLSL
+        try {
+            pair.glsl = fs.readFileSync(path.join(glslDir, `${program}.glsl`), 'utf-8')
+        } catch { /* missing */ }
+
+        // Read WGSL
+        try {
+            pair.wgsl = fs.readFileSync(path.join(wgslDir, `${program}.wgsl`), 'utf-8')
+        } catch { /* missing */ }
+
+        // Structural analysis
+        if (!pair.glsl || !pair.wgsl) {
+            pair.analysis.status = 'missing'
+            pair.analysis.missing = !pair.glsl ? 'glsl' : 'wgsl'
+        } else {
+            // Extract function names
+            const glslFns = [...pair.glsl.matchAll(/(?:void|float|vec[234]|mat[234]|int|bool)\s+(\w+)\s*\(/g)]
+                .map(m => m[1]).filter(n => n !== 'main')
+            const wgslFns = [...pair.wgsl.matchAll(/fn\s+(\w+)\s*\(/g)]
+                .map(m => m[1]).filter(n => n !== 'main')
+
+            const glslFnSet = new Set(glslFns)
+            const wgslFnSet = new Set(wgslFns)
+            const sharedFns = glslFns.filter(f => wgslFnSet.has(f))
+            const glslOnly = glslFns.filter(f => !wgslFnSet.has(f))
+            const wgslOnly = wgslFns.filter(f => !glslFnSet.has(f))
+
+            // Extract uniforms
+            const glslUniforms = [...pair.glsl.matchAll(/uniform\s+\w+\s+(\w+)/g)].map(m => m[1])
+            const wgslBindings = [...pair.wgsl.matchAll(/@binding\(\d+\)\s+var<uniform>\s+(\w+)/g)].map(m => m[1])
+
+            // Line counts
+            const glslLines = pair.glsl.split('\n').length
+            const wgslLines = pair.wgsl.split('\n').length
+
+            pair.analysis = {
+                status: 'paired',
+                glsl_lines: glslLines,
+                wgsl_lines: wgslLines,
+                shared_functions: sharedFns,
+                glsl_only_functions: glslOnly,
+                wgsl_only_functions: wgslOnly,
+                glsl_uniforms: glslUniforms,
+                wgsl_bindings: wgslBindings,
+                uniform_match: glslUniforms.length === wgslBindings.length &&
+                    glslUniforms.every(u => wgslBindings.includes(u))
+            }
+        }
+
+        pairs.push(pair)
+    }
+
+    const paired = pairs.filter(p => p.analysis.status === 'paired').length
+    const missing = pairs.filter(p => p.analysis.status === 'missing').length
+
+    return {
+        status: missing > 0 ? 'incomplete' : 'ok',
+        pairs,
+        summary: `${allPrograms.size} program(s): ${paired} paired, ${missing} missing counterpart`
+    }
+}
+
+/**
  * Analyze shader code for unnecessary branching.
  *
  * @param {object} options

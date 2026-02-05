@@ -13,14 +13,17 @@ A portable effect is a directory or ZIP archive containing:
 ```
 effect-name/
 ├── definition.json          # REQUIRED: Effect metadata
-├── glsl/                     # REQUIRED: GLSL shaders
+├── glsl/                     # At least one of glsl/ or wgsl/ REQUIRED
 │   ├── main.glsl            # Primary fragment shader
 │   └── *.glsl               # Additional shaders (multi-pass)
-├── wgsl/                     # OPTIONAL: WebGPU shaders
-│   └── *.wgsl               # (auto-generated if not provided)
+├── wgsl/                     # At least one of glsl/ or wgsl/ REQUIRED
+│   ├── main.wgsl            # Primary fragment shader
+│   └── *.wgsl               # Additional shaders (multi-pass)
 ├── help.md                   # OPTIONAL: Documentation
 └── dsl.txt                   # OPTIONAL: Example DSL program
 ```
+
+> **Recommendation:** Provide both GLSL and WGSL shaders for full interoperability across all Noise Factor applications. Effects with only one shader language will only work on the corresponding backend (WebGL or WebGPU).
 
 ---
 
@@ -106,8 +109,8 @@ If only one is provided, the other is inferred:
 | `globals` | object | `{}` | Parameter definitions |
 | `passes` | array | auto | Rendering pass configuration |
 | `textures` | object | `{}` | Internal texture definitions |
-| `uniformLayout` | object | — | UI grouping hints |
-| `uniformLayouts` | object | — | Multiple UI layouts |
+| `uniformLayout` | object | -- | UI grouping hints |
+| `uniformLayouts` | object | -- | Multiple UI layouts |
 
 ---
 
@@ -132,8 +135,8 @@ For portable effects, `user` is the recommended namespace. The effect will be re
 
 The `starter` field determines whether an effect can begin a DSL chain:
 
-- **`starter: true`** — Effect generates imagery from scratch (no input required)
-- **`starter: false`** — Effect requires input from a previous effect in the chain
+- **`starter: true`** -- Effect generates imagery from scratch (no input required)
+- **`starter: false`** -- Effect requires input from a previous effect in the chain
 
 ### Starter Effects (synth-type)
 
@@ -251,7 +254,7 @@ When `passes` is not specified:
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `name` | string | Yes | Unique pass identifier |
-| `program` | string | Yes | Shader program name (maps to `glsl/{program}.glsl`) |
+| `program` | string | Yes | Shader program name (maps to `glsl/{program}.glsl` and/or `wgsl/{program}.wgsl`) |
 | `inputs` | object | Yes | Sampler → texture bindings |
 | `outputs` | object | Yes | Fragment output → texture bindings |
 
@@ -285,7 +288,7 @@ If not specified, textures are created at the output resolution with RGBA8 forma
 
 ## Program Name Mapping
 
-Shader program names map to files:
+Shader program names map to files in available shader directories:
 
 | Program Name | GLSL Path | WGSL Path |
 |--------------|-----------|-----------|
@@ -295,15 +298,17 @@ Shader program names map to files:
 
 The filename (minus directory and extension) becomes the program name.
 
+An effect must provide at least one shader directory. If both are provided, each program name must have a corresponding file in both directories.
+
 ---
 
 ## Registration
 
 When an effect is loaded, it's registered under multiple keys for flexible lookup:
 
-1. `{namespace}.{func}` — Full namespaced name (e.g., `user.plasmaWave`)
-2. `{namespace}/{func}` — Slash-separated ID (e.g., `user/plasmaWave`)
-3. `{func}` — Plain function name (e.g., `plasmaWave`)
+1. `{namespace}.{func}` -- Full namespaced name (e.g., `user.plasmaWave`)
+2. `{namespace}/{func}` -- Slash-separated ID (e.g., `user/plasmaWave`)
+3. `{func}` -- Plain function name (e.g., `plasmaWave`)
 
 The DSL's `search` directive controls which namespaces are searched:
 
@@ -320,11 +325,12 @@ render(o0)
 A valid portable effect MUST have:
 
 1. ✅ A `definition.json` with at least `name` or `func`
-2. ✅ At least one `.glsl` file in the `glsl/` directory
-3. ✅ Program names in `passes` must match shader filenames
+2. ✅ At least one shader file in `glsl/` or `wgsl/` (or both)
+3. ✅ Program names in `passes` must match shader filenames in each provided directory
 
 A valid portable effect SHOULD have:
 
+- 📝 Both `glsl/` and `wgsl/` shaders for full cross-backend interoperability
 - 📝 A meaningful `description`
 - 📝 Appropriate `tags` for searchability
 - 📝 Correct `starter` field matching the effect type

@@ -24,6 +24,7 @@ import {
     checkEffectStructure,
     checkShaderParity,
     analyzeBranching,
+    compareShaders,
     testNoPassthrough,
     testPixelParity,
     isFilterEffect,
@@ -609,6 +610,13 @@ export async function checkEffectStructureOnDisk(options = {}) {
  */
 export async function checkAlgEquivOnDisk(options = {}) {
     return await checkShaderParity(options)
+}
+
+/**
+ * Compare GLSL and WGSL shader sources.
+ */
+export async function compareShadersOnDisk(options = {}) {
+    return await compareShaders(options)
 }
 
 /**

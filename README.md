@@ -23,9 +23,9 @@ portable/
 │   ├── dsl.txt             # Example DSL program
 │   ├── help.md             # Effect documentation
 │   ├── glsl/
-│   │   └── example.glsl    # WebGL shader
+│   │   └── osc2d.glsl      # WebGL shader
 │   └── wgsl/
-│       └── example.wgsl    # WebGPU shader
+│       └── osc2d.wgsl      # WebGPU shader
 ├── viewer/                 # Hot-reloading effect viewer
 │   ├── index.html          # Full-page viewer with param controls
 │   └── vendor/             # Noisemaker runtime (after pull)
@@ -49,9 +49,9 @@ This fetches the latest Noisemaker runtime bundle.
 ### 2. Edit Your Effect
 
 Modify files in the `effect/` directory:
-- `definition.json` — Effect definition and parameters
-- `glsl/example.glsl` — WebGL shader code
-- `wgsl/example.wgsl` — WebGPU shader code
+- `definition.json` -- Effect definition and parameters
+- `glsl/*.glsl` -- WebGL shader code
+- `wgsl/*.wgsl` -- WebGPU shader code
 
 ### 3. Test in Viewer
 
@@ -135,8 +135,19 @@ A portable effect needs only two files:
 ```
 my-effect/
 ├── definition.json     # Effect metadata and parameters
-└── glsl/
+└── glsl/               # At least one shader directory required
     └── main.glsl       # Fragment shader source
+```
+
+For full interoperability, provide both GLSL and WGSL shaders:
+
+```
+my-effect/
+├── definition.json
+├── glsl/
+│   └── main.glsl       # WebGL shader
+└── wgsl/
+    └── main.wgsl       # WebGPU shader
 ```
 
 ### definition.json
@@ -198,7 +209,7 @@ render(o0)
 |----------|-------------|
 | [**FORMAT.md**](docs/FORMAT.md) | Complete specification of the effect format |
 | [**PARAMETERS.md**](docs/PARAMETERS.md) | Defining uniforms and UI controls |
-| [**SHADERS.md**](docs/SHADERS.md) | Writing compatible GLSL shaders |
+| [**SHADERS.md**](docs/SHADERS.md) | Writing GLSL and WGSL shaders |
 | [**DSL.md**](docs/DSL.md) | Using effects in the Polymorphic DSL |
 | [**VIEWER.md**](docs/VIEWER.md) | Using the hot-reloading effect viewer |
 
@@ -224,4 +235,4 @@ The `starter` field in definition.json determines whether an effect can begin a 
 
 This specification is released under the MIT License.
 
-Effects you create are your own — share them however you like.
+Effects you create are your own -- share them however you like.
