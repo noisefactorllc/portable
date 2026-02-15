@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "portable-shader": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/aayars/source/shade-mcp/dist/index.js"],
+      "env": {
+        "SHADE_EFFECTS_DIR": "${workspaceFolder}/effect",
+        "SHADE_PROJECT_ROOT": "${workspaceFolder}",
+        "SHADE_VIEWER_ROOT": "${workspaceFolder}",
+        "SHADE_VIEWER_PATH": "/viewer/index.html",
+        "SHADE_GLOBALS_PREFIX": "__portable"
+      }
+    }
+  }
+}
