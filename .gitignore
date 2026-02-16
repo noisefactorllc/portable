@@ -12,7 +12,8 @@ shaders/effects/manifest.json
 Thumbs.db
 
 # Editor files
-.vscode/
+.vscode/settings.json
+.vscode/launch.json
 .idea/
 *.swp
 *.swo

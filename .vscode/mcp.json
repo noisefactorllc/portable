@@ -3,7 +3,7 @@
     "portable-shader": {
       "type": "stdio",
       "command": "node",
-      "args": ["/Users/aayars/source/shade-mcp/dist/index.js"],
+      "args": ["${workspaceFolder}/vendor/shade-mcp/index.js"],
       "env": {
         "SHADE_EFFECTS_DIR": "${workspaceFolder}/effect",
         "SHADE_PROJECT_ROOT": "${workspaceFolder}",
