@@ -17,17 +17,9 @@ The portable effects viewer is a hot-reloading development environment for testi
 
 ## Setup
 
-### 1. Pull the Runtime
+### 1. Start a Local Server
 
-From the `portable/` directory:
-
-```bash
-./pull-noisemaker
-```
-
-This clones the noisemaker repository, builds the shader bundle, and copies it to `viewer/vendor/`.
-
-### 2. Start a Local Server
+The viewer loads the Noisemaker runtime from `shaders.noisedeck.app` via CDN. No local vendor setup is needed.
 
 ```bash
 python -m http.server 8080
@@ -35,7 +27,7 @@ python -m http.server 8080
 
 Or use any static file server (e.g., `npx serve`, `php -S localhost:8080`).
 
-### 3. Open the Viewer
+### 2. Open the Viewer
 
 Navigate to [http://localhost:8080/viewer/](http://localhost:8080/viewer/)
 

@@ -29,35 +29,25 @@ portable/
 ├── viewer/                 # Hot-reloading effect viewer
 │   ├── index.html          # Full-page viewer with param controls
 │   └── vendor/             # Noisemaker runtime (after pull)
-├── docs/                   # Format specification
-└── pull-noisemaker         # Script to fetch runtime
+└── docs/                   # Format specification
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Pull the Runtime (Optional)
-
-```bash
-cd portable
-./pull-noisemaker
-```
-
-This fetches the latest Noisemaker runtime bundle.
-
-### 2. Edit Your Effect
+### 1. Edit Your Effect
 
 Modify files in the `effect/` directory:
 - `definition.json` -- Effect definition and parameters
 - `glsl/*.glsl` -- WebGL shader code
 - `wgsl/*.wgsl` -- WebGPU shader code
 
-### 3. Test in Viewer
+### 2. Test in Viewer
 
 Open `viewer/index.html` in a browser. The viewer automatically reloads when you save changes.
 
-### 4. Package for Distribution
+### 3. Package for Distribution
 
 Create a ZIP archive for sharing or importing into applications:
 
@@ -71,7 +61,7 @@ npm run package
 
 This creates `effect.zip`.
 
-### 5. Import into Noisedeck
+### 4. Import into Noisedeck
 
 To use your effect in Noisedeck or other Noise Factor applications:
 
