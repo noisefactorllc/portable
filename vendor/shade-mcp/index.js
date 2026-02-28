@@ -5499,8 +5499,8 @@ function registerRunDslProgram(server2) {
 }
 
 // src/tools/analysis/structure.ts
-import { readdirSync as readdirSync2, existsSync as existsSync4 } from "fs";
-import { join as join5 } from "path";
+import { readFileSync as readFileSync5, readdirSync as readdirSync3, existsSync as existsSync5 } from "fs";
+import { join as join6 } from "path";
 
 // src/formats/index.ts
 import { existsSync as existsSync3, readFileSync as readFileSync3 } from "fs";
@@ -5627,7 +5627,227 @@ function loadEffectDefinition(effectDir) {
   throw new Error(`No definition.json or definition.js found in ${effectDir}`);
 }
 
+// src/tools/analysis/compare.ts
+import { readFileSync as readFileSync4, readdirSync as readdirSync2, existsSync as existsSync4 } from "fs";
+import { join as join5, basename as basename3 } from "path";
+var compareShadersSchema = {
+  effect_id: external_exports.string().describe('Effect ID (e.g., "synth/noise")')
+};
+function extractFunctionNames(source, lang) {
+  const stripped = stripComments(source);
+  const names = [];
+  if (lang === "glsl") {
+    const regex = /(?:void|float|vec[234]|mat[234]|int|bool)\s+(\w+)\s*\(/g;
+    let match;
+    while ((match = regex.exec(stripped)) !== null) {
+      names.push(match[1]);
+    }
+  } else {
+    const regex = /fn\s+(\w+)\s*\(/g;
+    let match;
+    while ((match = regex.exec(stripped)) !== null) {
+      names.push(match[1]);
+    }
+  }
+  return names;
+}
+function stripComments(source) {
+  source = source.replace(/\/\/.*$/gm, "");
+  source = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  return source;
+}
+function extractUniforms(source, lang) {
+  const stripped = stripComments(source);
+  const uniforms = [];
+  if (lang === "glsl") {
+    const regex = /uniform[ \t]+\w+[ \t]+(\w+)/g;
+    let match;
+    while ((match = regex.exec(stripped)) !== null) {
+      uniforms.push(match[1]);
+    }
+  } else {
+    const regex = /@group\(\d+\)\s+@binding\(\d+\)\s+var<uniform>\s+(\w+)/g;
+    let match;
+    while ((match = regex.exec(source)) !== null) {
+      uniforms.push(match[1]);
+    }
+  }
+  return uniforms;
+}
+async function compareShaders(effectId) {
+  const config = getConfig();
+  const effectDir = resolveEffectDir(effectId, config.effectsDir);
+  const glslDir = join5(effectDir, "glsl");
+  const wgslDir = join5(effectDir, "wgsl");
+  const results = [];
+  const glslFiles = existsSync4(glslDir) ? readdirSync2(glslDir).filter((f) => f.endsWith(".glsl")) : [];
+  const wgslFiles = existsSync4(wgslDir) ? readdirSync2(wgslDir).filter((f) => f.endsWith(".wgsl")) : [];
+  const wgslMap = new Map(wgslFiles.map((f) => [basename3(f, ".wgsl"), f]));
+  for (const gf of glslFiles) {
+    const program = basename3(gf, ".glsl");
+    const wf = wgslMap.get(program);
+    const glslSource = readFileSync4(join5(glslDir, gf), "utf-8");
+    const glslFunctions = extractFunctionNames(glslSource, "glsl");
+    const glslUniforms = extractUniforms(glslSource, "glsl");
+    const glslLines = glslSource.split("\n").length;
+    if (wf) {
+      const wgslSource = readFileSync4(join5(wgslDir, wf), "utf-8");
+      const wgslFunctions = extractFunctionNames(wgslSource, "wgsl");
+      const wgslUniforms = extractUniforms(wgslSource, "wgsl");
+      const wgslLines = wgslSource.split("\n").length;
+      results.push({
+        program,
+        glsl: { lines: glslLines, functions: glslFunctions, uniforms: glslUniforms },
+        wgsl: { lines: wgslLines, functions: wgslFunctions, uniforms: wgslUniforms },
+        lineDiff: Math.abs(glslLines - wgslLines),
+        functionCountDiff: Math.abs(glslFunctions.length - wgslFunctions.length)
+      });
+      wgslMap.delete(program);
+    } else {
+      results.push({
+        program,
+        glsl: { lines: glslLines, functions: glslFunctions, uniforms: glslUniforms },
+        wgsl: null,
+        note: "No WGSL counterpart"
+      });
+    }
+  }
+  for (const [program, wf] of wgslMap) {
+    const wgslSource = readFileSync4(join5(wgslDir, wf), "utf-8");
+    results.push({
+      program,
+      glsl: null,
+      wgsl: {
+        lines: wgslSource.split("\n").length,
+        functions: extractFunctionNames(wgslSource, "wgsl"),
+        uniforms: extractUniforms(wgslSource, "wgsl")
+      },
+      note: "No GLSL counterpart"
+    });
+  }
+  return {
+    status: "ok",
+    programs: results,
+    summary: `${results.length} programs compared`
+  };
+}
+function registerCompareShaders(server2) {
+  server2.tool(
+    "compareShaders",
+    "Static structural comparison: function names, uniform declarations, line counts. No AI needed.",
+    compareShadersSchema,
+    async (args) => {
+      const result = await compareShaders(args.effect_id);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+}
+
 // src/tools/analysis/structure.ts
+var GLSL_RESERVED = /* @__PURE__ */ new Set([
+  // Type qualifiers
+  "const",
+  "uniform",
+  "in",
+  "out",
+  "inout",
+  "centroid",
+  "flat",
+  "smooth",
+  "layout",
+  "invariant",
+  "highp",
+  "mediump",
+  "lowp",
+  "precision",
+  // Types
+  "void",
+  "bool",
+  "int",
+  "uint",
+  "float",
+  "vec2",
+  "vec3",
+  "vec4",
+  "bvec2",
+  "bvec3",
+  "bvec4",
+  "ivec2",
+  "ivec3",
+  "ivec4",
+  "uvec2",
+  "uvec3",
+  "uvec4",
+  "mat2",
+  "mat3",
+  "mat4",
+  "sampler2D",
+  "sampler3D",
+  "samplerCube",
+  // Control flow
+  "if",
+  "else",
+  "for",
+  "while",
+  "do",
+  "switch",
+  "case",
+  "default",
+  "break",
+  "continue",
+  "return",
+  "discard",
+  "struct",
+  "true",
+  "false"
+]);
+var GLSL_BUILTINS = /* @__PURE__ */ new Set([
+  // Trig
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  // Exponential
+  "pow",
+  "exp",
+  "log",
+  "exp2",
+  "log2",
+  "sqrt",
+  "inversesqrt",
+  // Common
+  "abs",
+  "sign",
+  "floor",
+  "ceil",
+  "fract",
+  "mod",
+  "min",
+  "max",
+  "clamp",
+  "mix",
+  "step",
+  "smoothstep",
+  // Geometric
+  "length",
+  "distance",
+  "dot",
+  "cross",
+  "normalize",
+  "faceforward",
+  "reflect",
+  "refract",
+  // Texture
+  "texture",
+  "texelFetch",
+  "textureSize",
+  // Derivative
+  "dFdx",
+  "dFdy",
+  "fwidth"
+]);
 var checkEffectStructureSchema = {
   effect_id: external_exports.string().describe('Effect ID (e.g., "synth/noise")')
 };
@@ -5637,12 +5857,13 @@ function checkCamelCase(name) {
 async function checkEffectStructure(effectId) {
   const config = getConfig();
   const effectDir = resolveEffectDir(effectId, config.effectsDir);
-  if (!existsSync4(effectDir)) {
+  if (!existsSync5(effectDir)) {
     return { status: "error", error: `Effect directory not found: ${effectDir}` };
   }
   const issues = {
     unusedFiles: [],
     namingIssues: [],
+    nameCollisions: [],
     leakedInternalUniforms: [],
     missingDescription: false,
     structuralParityIssues: [],
@@ -5671,12 +5892,12 @@ async function checkEffectStructure(effectId) {
       issues.leakedInternalUniforms.push(name);
     }
   }
-  const glslDir = join5(effectDir, "glsl");
-  const wgslDir = join5(effectDir, "wgsl");
-  const glslFiles = existsSync4(glslDir) ? readdirSync2(glslDir).filter(
+  const glslDir = join6(effectDir, "glsl");
+  const wgslDir = join6(effectDir, "wgsl");
+  const glslFiles = existsSync5(glslDir) ? readdirSync3(glslDir).filter(
     (f) => f.endsWith(".glsl") || f.endsWith(".frag") || f.endsWith(".vert")
   ) : [];
-  const wgslFiles = existsSync4(wgslDir) ? readdirSync2(wgslDir).filter((f) => f.endsWith(".wgsl")) : [];
+  const wgslFiles = existsSync5(wgslDir) ? readdirSync3(wgslDir).filter((f) => f.endsWith(".wgsl")) : [];
   function programName(filename) {
     return filename.replace(/\.(glsl|frag|vert|wgsl)$/, "");
   }
@@ -5703,13 +5924,45 @@ async function checkEffectStructure(effectId) {
       issues.structuralParityIssues.push({ type: "missing_glsl", program: p, message: `WGSL program "${p}" has no GLSL counterpart` });
     }
   }
-  const hasIssues = issues.unusedFiles.length > 0 || issues.namingIssues.length > 0 || issues.leakedInternalUniforms.length > 0 || issues.missingDescription || issues.structuralParityIssues.length > 0;
+  for (const gf of glslFiles) {
+    const source = readFileSync5(join6(glslDir, gf), "utf-8");
+    const uniforms = extractUniforms(source, "glsl");
+    const functions = extractFunctionNames(source, "glsl");
+    const functionSet = new Set(functions);
+    for (const u of uniforms) {
+      if (functionSet.has(u)) {
+        issues.nameCollisions.push({
+          type: "uniform_function",
+          name: u,
+          file: `glsl/${gf}`,
+          message: `Uniform "${u}" collides with function "${u}()" in same file`
+        });
+      }
+      if (GLSL_RESERVED.has(u)) {
+        issues.nameCollisions.push({
+          type: "reserved_word",
+          name: u,
+          file: `glsl/${gf}`,
+          message: `Uniform "${u}" is a GLSL reserved word`
+        });
+      }
+      if (GLSL_BUILTINS.has(u)) {
+        issues.nameCollisions.push({
+          type: "builtin_shadow",
+          name: u,
+          file: `glsl/${gf}`,
+          message: `Uniform "${u}" shadows GLSL built-in function "${u}()"`
+        });
+      }
+    }
+  }
+  const hasIssues = issues.unusedFiles.length > 0 || issues.namingIssues.length > 0 || issues.nameCollisions.length > 0 || issues.leakedInternalUniforms.length > 0 || issues.missingDescription || issues.structuralParityIssues.length > 0;
   return { status: hasIssues ? "warning" : "ok", ...issues };
 }
 function registerCheckEffectStructure(server2) {
   server2.tool(
     "checkEffectStructure",
-    "Detect unused files, broken references, naming violations, leaked/undefined uniforms, missing descriptions, structural parity issues.",
+    "Detect unused files, broken references, naming violations, leaked/undefined uniforms, missing descriptions, structural parity issues, and GLSL name collisions (uniform vs function, reserved words, built-in shadowing).",
     checkEffectStructureSchema,
     async (args) => {
       const result = await checkEffectStructure(args.effect_id);
@@ -5719,8 +5972,8 @@ function registerCheckEffectStructure(server2) {
 }
 
 // src/tools/analysis/alg-equiv.ts
-import { readFileSync as readFileSync5, readdirSync as readdirSync3, existsSync as existsSync5 } from "fs";
-import { join as join6, basename as basename4 } from "path";
+import { readFileSync as readFileSync6, readdirSync as readdirSync4, existsSync as existsSync6 } from "fs";
+import { join as join7, basename as basename5 } from "path";
 var checkAlgEquivSchema = {
   effect_id: external_exports.string().describe('Effect ID (e.g., "synth/noise")')
 };
@@ -5729,25 +5982,25 @@ async function checkAlgEquiv(effectId) {
   const ai = getAIProvider({ projectRoot: config.projectRoot });
   if (!ai) return { status: "error", error: NO_AI_KEY_MESSAGE };
   const effectDir = resolveEffectDir(effectId, config.effectsDir);
-  const glslDir = join6(effectDir, "glsl");
-  const wgslDir = join6(effectDir, "wgsl");
-  if (!existsSync5(glslDir) || !existsSync5(wgslDir)) {
+  const glslDir = join7(effectDir, "glsl");
+  const wgslDir = join7(effectDir, "wgsl");
+  if (!existsSync6(glslDir) || !existsSync6(wgslDir)) {
     return { status: "error", error: "Missing glsl/ or wgsl/ directory" };
   }
-  const glslFiles = readdirSync3(glslDir).filter((f) => f.endsWith(".glsl"));
-  const wgslFiles = readdirSync3(wgslDir).filter((f) => f.endsWith(".wgsl"));
+  const glslFiles = readdirSync4(glslDir).filter((f) => f.endsWith(".glsl"));
+  const wgslFiles = readdirSync4(wgslDir).filter((f) => f.endsWith(".wgsl"));
   const pairs = [];
   const unmatchedGlsl = [];
   const unmatchedWgsl = [];
-  const wgslMap = new Map(wgslFiles.map((f) => [basename4(f, ".wgsl"), f]));
+  const wgslMap = new Map(wgslFiles.map((f) => [basename5(f, ".wgsl"), f]));
   for (const gf of glslFiles) {
-    const name = basename4(gf, ".glsl");
+    const name = basename5(gf, ".glsl");
     const wf = wgslMap.get(name);
     if (wf) {
       pairs.push({
         program: name,
-        glsl: readFileSync5(join6(glslDir, gf), "utf-8"),
-        wgsl: readFileSync5(join6(wgslDir, wf), "utf-8")
+        glsl: readFileSync6(join7(glslDir, gf), "utf-8"),
+        wgsl: readFileSync6(join7(wgslDir, wf), "utf-8")
       });
       wgslMap.delete(name);
     } else {
@@ -5762,8 +6015,8 @@ async function checkAlgEquiv(effectId) {
   }
   let defContext = "";
   try {
-    const defPath = existsSync5(join6(effectDir, "definition.json")) ? join6(effectDir, "definition.json") : join6(effectDir, "definition.js");
-    defContext = readFileSync5(defPath, "utf-8").slice(0, 1e3);
+    const defPath = existsSync6(join7(effectDir, "definition.json")) ? join7(effectDir, "definition.json") : join7(effectDir, "definition.js");
+    defContext = readFileSync6(defPath, "utf-8").slice(0, 1e3);
   } catch {
   }
   const results = [];
@@ -5813,115 +6066,6 @@ function registerCheckAlgEquiv(server2) {
     checkAlgEquivSchema,
     async (args) => {
       const result = await checkAlgEquiv(args.effect_id);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    }
-  );
-}
-
-// src/tools/analysis/compare.ts
-import { readFileSync as readFileSync6, readdirSync as readdirSync4, existsSync as existsSync6 } from "fs";
-import { join as join7, basename as basename5 } from "path";
-var compareShadersSchema = {
-  effect_id: external_exports.string().describe('Effect ID (e.g., "synth/noise")')
-};
-function extractFunctionNames(source, lang) {
-  const names = [];
-  if (lang === "glsl") {
-    const regex = /(?:void|float|vec[234]|mat[234]|int|bool)\s+(\w+)\s*\(/g;
-    let match;
-    while ((match = regex.exec(source)) !== null) {
-      names.push(match[1]);
-    }
-  } else {
-    const regex = /fn\s+(\w+)\s*\(/g;
-    let match;
-    while ((match = regex.exec(source)) !== null) {
-      names.push(match[1]);
-    }
-  }
-  return names;
-}
-function extractUniforms(source, lang) {
-  const uniforms = [];
-  if (lang === "glsl") {
-    const regex = /uniform\s+\w+\s+(\w+)/g;
-    let match;
-    while ((match = regex.exec(source)) !== null) {
-      uniforms.push(match[1]);
-    }
-  } else {
-    const regex = /@group\(\d+\)\s+@binding\(\d+\)\s+var<uniform>\s+(\w+)/g;
-    let match;
-    while ((match = regex.exec(source)) !== null) {
-      uniforms.push(match[1]);
-    }
-  }
-  return uniforms;
-}
-async function compareShaders(effectId) {
-  const config = getConfig();
-  const effectDir = resolveEffectDir(effectId, config.effectsDir);
-  const glslDir = join7(effectDir, "glsl");
-  const wgslDir = join7(effectDir, "wgsl");
-  const results = [];
-  const glslFiles = existsSync6(glslDir) ? readdirSync4(glslDir).filter((f) => f.endsWith(".glsl")) : [];
-  const wgslFiles = existsSync6(wgslDir) ? readdirSync4(wgslDir).filter((f) => f.endsWith(".wgsl")) : [];
-  const wgslMap = new Map(wgslFiles.map((f) => [basename5(f, ".wgsl"), f]));
-  for (const gf of glslFiles) {
-    const program = basename5(gf, ".glsl");
-    const wf = wgslMap.get(program);
-    const glslSource = readFileSync6(join7(glslDir, gf), "utf-8");
-    const glslFunctions = extractFunctionNames(glslSource, "glsl");
-    const glslUniforms = extractUniforms(glslSource, "glsl");
-    const glslLines = glslSource.split("\n").length;
-    if (wf) {
-      const wgslSource = readFileSync6(join7(wgslDir, wf), "utf-8");
-      const wgslFunctions = extractFunctionNames(wgslSource, "wgsl");
-      const wgslUniforms = extractUniforms(wgslSource, "wgsl");
-      const wgslLines = wgslSource.split("\n").length;
-      results.push({
-        program,
-        glsl: { lines: glslLines, functions: glslFunctions, uniforms: glslUniforms },
-        wgsl: { lines: wgslLines, functions: wgslFunctions, uniforms: wgslUniforms },
-        lineDiff: Math.abs(glslLines - wgslLines),
-        functionCountDiff: Math.abs(glslFunctions.length - wgslFunctions.length)
-      });
-      wgslMap.delete(program);
-    } else {
-      results.push({
-        program,
-        glsl: { lines: glslLines, functions: glslFunctions, uniforms: glslUniforms },
-        wgsl: null,
-        note: "No WGSL counterpart"
-      });
-    }
-  }
-  for (const [program, wf] of wgslMap) {
-    const wgslSource = readFileSync6(join7(wgslDir, wf), "utf-8");
-    results.push({
-      program,
-      glsl: null,
-      wgsl: {
-        lines: wgslSource.split("\n").length,
-        functions: extractFunctionNames(wgslSource, "wgsl"),
-        uniforms: extractUniforms(wgslSource, "wgsl")
-      },
-      note: "No GLSL counterpart"
-    });
-  }
-  return {
-    status: "ok",
-    programs: results,
-    summary: `${results.length} programs compared`
-  };
-}
-function registerCompareShaders(server2) {
-  server2.tool(
-    "compareShaders",
-    "Static structural comparison: function names, uniform declarations, line counts. No AI needed.",
-    compareShadersSchema,
-    async (args) => {
-      const result = await compareShaders(args.effect_id);
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     }
   );
