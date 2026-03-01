@@ -69,6 +69,8 @@ function startServer() {
         if (msg.type() === 'error') {
             // WebGL INVALID_OPERATION is expected in headless software renderer
             if (/WebGL Error 3744[0-9]/.test(text)) return;
+            // Browser-level 404s for optional resources (e.g. shaders manifest)
+            if (/Failed to load resource/.test(text)) return;
             errors.push(text);
             console.error('Console error:', text);
         }
