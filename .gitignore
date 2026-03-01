@@ -2,7 +2,6 @@
 node_modules/
 
 # Testing
-test-viewer.mjs
 
 # Generated/temporary files
 shaders/effects/manifest.json

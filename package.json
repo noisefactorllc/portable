@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "npx serve . -l 2999",
-    "package": "node package-portable.mjs"
+    "package": "node package-portable.mjs",
+    "test": "node test-definition.mjs && node test-viewer.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
