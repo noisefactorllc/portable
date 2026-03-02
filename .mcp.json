@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "shade": {
+      "command": "node",
+      "args": ["vendor/shade-mcp/index.js"],
+      "env": {
+        "SHADE_EFFECTS_DIR": "effect",
+        "SHADE_PROJECT_ROOT": ".",
+        "SHADE_VIEWER_ROOT": ".",
+        "SHADE_VIEWER_PATH": "/viewer/index.html",
+        "SHADE_GLOBALS_PREFIX": "__portable"
+      }
+    }
+  }
+}
