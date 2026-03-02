@@ -27,8 +27,7 @@ portable/
 │   └── wgsl/
 │       └── osc2d.wgsl      # WebGPU shader
 ├── viewer/                 # Hot-reloading effect viewer
-│   ├── index.html          # Full-page viewer with param controls
-│   └── vendor/             # Noisemaker runtime (after pull)
+│   └── index.html          # Full-page viewer with param controls
 └── docs/                   # Format specification
 ```
 

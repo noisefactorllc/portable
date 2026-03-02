@@ -50,10 +50,10 @@ Edit files and save -- the viewer updates automatically.
 
 ```
 viewer/
-├── index.html              # Main viewer page
-└── vendor/
-    └── noisemaker-shaders-core.esm.js
+└── index.html              # Main viewer page
 ```
+
+The Noisemaker runtime is loaded directly from the CDN at `shaders.noisedeck.app/<version>/`.
 
 The viewer loads the effect from `../effect/definition.json` and its shaders from `../effect/glsl/` and/or `../effect/wgsl/`.
 
