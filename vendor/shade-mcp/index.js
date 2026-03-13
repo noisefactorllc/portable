@@ -9,6 +9,53 @@ var __export = (target, all) => {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
+// src/config.ts
+import { resolve } from "path";
+var VALID_BACKENDS = ["webgl2", "webgpu"];
+function parseBackend(value) {
+  if (value && VALID_BACKENDS.includes(value)) {
+    return value;
+  }
+  return "webgl2";
+}
+function getConfig() {
+  const projectRoot = process.env.SHADE_PROJECT_ROOT || process.cwd();
+  return {
+    effectsDir: process.env.SHADE_EFFECTS_DIR || resolve(projectRoot, "effects"),
+    viewerPort: parseInt(process.env.SHADE_VIEWER_PORT || "0", 10),
+    defaultBackend: parseBackend(process.env.SHADE_BACKEND),
+    projectRoot,
+    globalsPrefix: process.env.SHADE_GLOBALS_PREFIX || void 0,
+    viewerPath: process.env.SHADE_VIEWER_PATH || void 0,
+    maxBrowsers: parseInt(process.env.SHADE_MAX_BROWSERS || "1", 10)
+  };
+}
+
+// src/harness/browser-queue.ts
+var maxConcurrency = 1;
+var waiting = [];
+var active = 0;
+function setMaxBrowsers(n) {
+  maxConcurrency = Math.max(1, n);
+}
+async function acquireBrowserSlot() {
+  if (active < maxConcurrency) {
+    active++;
+    return;
+  }
+  await new Promise((resolve3) => {
+    waiting.push(resolve3);
+  });
+}
+function releaseBrowserSlot() {
+  if (waiting.length > 0) {
+    const next = waiting.shift();
+    next();
+  } else {
+    active = Math.max(0, active - 1);
+  }
+}
+
 // node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -4082,7 +4129,8 @@ import { createReadStream, existsSync } from "fs";
 import { extname, join, resolve as pathResolve, normalize, basename } from "path";
 var httpServer = null;
 var refCount = 0;
-var activePort = 4173;
+var activePort = 0;
+var requestedPort = 0;
 var MIME_TYPES = {
   ".html": "text/html",
   ".js": "application/javascript",
@@ -4125,13 +4173,13 @@ function serveFile(filePath, res) {
 }
 async function acquireServer(port, viewerRoot, effectsDir) {
   if (refCount > 0) {
-    if (port !== activePort) {
-      throw new Error(`Server already running on port ${activePort}, cannot switch to ${port}`);
+    if (port !== requestedPort) {
+      throw new Error(`Server already running on port ${activePort} (requested ${requestedPort}), cannot switch to ${port}`);
     }
     refCount++;
     return getServerUrl();
   }
-  activePort = port;
+  requestedPort = port;
   const isFlatLayout = existsSync(join(effectsDir, "definition.json")) || existsSync(join(effectsDir, "definition.js"));
   const flatEffectName = isFlatLayout ? basename(effectsDir) : null;
   httpServer = createServer((req, res) => {
@@ -4172,7 +4220,11 @@ async function acquireServer(port, viewerRoot, effectsDir) {
     serveFile(filePath, res);
   });
   await new Promise((resolve3, reject) => {
-    httpServer.listen(port, "127.0.0.1", () => resolve3());
+    httpServer.listen(port, "127.0.0.1", () => {
+      const addr = httpServer.address();
+      activePort = typeof addr === "object" && addr ? addr.port : port;
+      resolve3();
+    });
     httpServer.on("error", reject);
   });
   refCount = 1;
@@ -4184,35 +4236,16 @@ function releaseServer() {
   if (refCount === 0 && httpServer) {
     httpServer.close();
     httpServer = null;
+    activePort = 0;
+    requestedPort = 0;
   }
 }
 function getServerUrl() {
   return `http://127.0.0.1:${activePort}`;
 }
 
-// src/config.ts
-import { resolve } from "path";
-var VALID_BACKENDS = ["webgl2", "webgpu"];
-function parseBackend(value) {
-  if (value && VALID_BACKENDS.includes(value)) {
-    return value;
-  }
-  return "webgl2";
-}
-function getConfig() {
-  const projectRoot = process.env.SHADE_PROJECT_ROOT || process.cwd();
-  return {
-    effectsDir: process.env.SHADE_EFFECTS_DIR || resolve(projectRoot, "effects"),
-    viewerPort: parseInt(process.env.SHADE_VIEWER_PORT || "4173", 10),
-    defaultBackend: parseBackend(process.env.SHADE_BACKEND),
-    projectRoot,
-    globalsPrefix: process.env.SHADE_GLOBALS_PREFIX || void 0,
-    viewerPath: process.env.SHADE_VIEWER_PATH || void 0
-  };
-}
-
 // src/harness/browser-session.ts
-var STATUS_TIMEOUT = 3e4;
+var STATUS_TIMEOUT = 3e5;
 function getBrowserLaunchOptions(headless, backend) {
   const args = ["--disable-gpu-sandbox"];
   if (backend === "webgpu") {
@@ -4240,49 +4273,64 @@ var BrowserSession = class {
   consoleMessages = [];
   _isSetup = false;
   constructor(opts) {
-    const config = getConfig();
-    this.globals = opts.globals ?? (config.globalsPrefix ? globalsFromPrefix(config.globalsPrefix) : DEFAULT_GLOBALS);
-    this.viewerPath = opts.viewerPath ?? config.viewerPath ?? "/";
+    const config2 = getConfig();
+    this.globals = opts.globals ?? (config2.globalsPrefix ? globalsFromPrefix(config2.globalsPrefix) : DEFAULT_GLOBALS);
+    this.viewerPath = opts.viewerPath ?? config2.viewerPath ?? "/";
     this.options = {
       backend: opts.backend,
       headless: opts.headless !== false,
-      viewerPort: opts.viewerPort ?? config.viewerPort,
-      viewerRoot: opts.viewerRoot ?? process.env.SHADE_VIEWER_ROOT ?? resolve2(config.projectRoot, "viewer"),
-      effectsDir: opts.effectsDir ?? config.effectsDir
+      viewerPort: opts.viewerPort ?? config2.viewerPort,
+      viewerRoot: opts.viewerRoot ?? process.env.SHADE_VIEWER_ROOT ?? resolve2(config2.projectRoot, "viewer"),
+      effectsDir: opts.effectsDir ?? config2.effectsDir
     };
   }
   async setup() {
     if (this._isSetup) throw new Error("Session already set up. Call teardown() first.");
-    this.baseUrl = await acquireServer(this.options.viewerPort, this.options.viewerRoot, this.options.effectsDir);
-    this.browser = await chromium.launch(
-      getBrowserLaunchOptions(this.options.headless, this.options.backend)
-    );
-    const viewportSize = process.env.CI ? { width: 256, height: 256 } : { width: 1280, height: 720 };
-    this.context = await this.browser.newContext({
-      viewport: viewportSize,
-      ignoreHTTPSErrors: true
-    });
-    this.page = await this.context.newPage();
-    this.page.setDefaultTimeout(STATUS_TIMEOUT);
-    this.page.setDefaultNavigationTimeout(STATUS_TIMEOUT);
-    this.consoleMessages = [];
-    this.page.on("console", (msg) => {
-      const text = msg.text();
-      if (text.includes("Error") || text.includes("error") || text.includes("warning") || text.includes("[compileEffect]") || text.includes("[expand]") || text.includes("[Pipeline") || text.includes("[MCP-UNIFORM]") || msg.type() === "error" || msg.type() === "warning") {
-        this.consoleMessages.push({ type: msg.type(), text });
-      }
-    });
-    this.page.on("pageerror", (error) => {
-      this.consoleMessages.push({ type: "pageerror", text: error.message });
-    });
-    await this.page.goto(`${this.baseUrl}${this.viewerPath}`, { waitUntil: "networkidle" });
-    const rendererGlobal = this.globals.canvasRenderer;
-    await this.page.waitForFunction(
-      (name) => !!window[name],
-      rendererGlobal,
-      { timeout: STATUS_TIMEOUT }
-    );
-    this._isSetup = true;
+    await acquireBrowserSlot();
+    try {
+      this.baseUrl = await acquireServer(this.options.viewerPort, this.options.viewerRoot, this.options.effectsDir);
+      this.browser = await chromium.launch(
+        getBrowserLaunchOptions(this.options.headless, this.options.backend)
+      );
+      const viewportSize = process.env.CI ? { width: 256, height: 256 } : { width: 1280, height: 720 };
+      this.context = await this.browser.newContext({
+        viewport: viewportSize,
+        ignoreHTTPSErrors: true
+      });
+      this.page = await this.context.newPage();
+      this.page.setDefaultTimeout(STATUS_TIMEOUT);
+      this.page.setDefaultNavigationTimeout(STATUS_TIMEOUT);
+      this.consoleMessages = [];
+      this.page.on("console", (msg) => {
+        const text = msg.text();
+        if (text.includes("Error") || text.includes("error") || text.includes("warning") || text.includes("[compileEffect]") || text.includes("[expand]") || text.includes("[Pipeline") || text.includes("[MCP-UNIFORM]") || msg.type() === "error" || msg.type() === "warning") {
+          this.consoleMessages.push({ type: msg.type(), text });
+        }
+      });
+      this.page.on("pageerror", (error) => {
+        this.consoleMessages.push({ type: "pageerror", text: error.message });
+      });
+      await this.page.goto(`${this.baseUrl}${this.viewerPath}`, { waitUntil: "networkidle" });
+      const rendererGlobal = this.globals.canvasRenderer;
+      await this.page.waitForFunction(
+        (name) => !!window[name],
+        rendererGlobal,
+        { timeout: STATUS_TIMEOUT }
+      );
+      this._isSetup = true;
+    } catch (err) {
+      if (this.page) await this.page.close().catch(() => {
+      });
+      if (this.context) await this.context.close().catch(() => {
+      });
+      if (this.browser) await this.browser.close().catch(() => {
+      });
+      this.page = null;
+      this.context = null;
+      this.browser = null;
+      releaseBrowserSlot();
+      throw err;
+    }
   }
   async teardown() {
     if (this.page) {
@@ -4301,6 +4349,7 @@ var BrowserSession = class {
       this.browser = null;
     }
     releaseServer();
+    releaseBrowserSlot();
     this.consoleMessages = [];
     this._isSetup = false;
   }
@@ -4431,7 +4480,7 @@ function resolveEffectDir(effectId, effectsDir) {
 }
 
 // src/tools/browser/compile.ts
-var STATUS_TIMEOUT2 = 3e4;
+var STATUS_TIMEOUT2 = 3e5;
 var compileEffectSchema = {
   effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
   effects: external_exports.string().optional().describe("CSV of effect IDs"),
@@ -4488,11 +4537,11 @@ function registerCompileEffect(server2) {
     "Compile shader effect and return pass-level diagnostics. Supports glob/CSV batch.",
     compileEffectSchema,
     async (args) => {
-      const config = getConfig();
+      const config2 = getConfig();
       const session = new BrowserSession({ backend: args.backend });
       try {
         await session.setup();
-        const effectIds = resolveEffectIds(args, config.effectsDir);
+        const effectIds = resolveEffectIds(args, config2.effectsDir);
         const results = [];
         for (const id of effectIds) {
           try {
@@ -4537,7 +4586,7 @@ async function renderEffectFrame(session, effectId, options = {}) {
       const s = document.getElementById("status");
       const t = (s?.textContent || "").toLowerCase();
       return t.includes("loaded") || t.includes("compiled") || t.includes("ready") || t.includes("error");
-    }, { timeout: 3e4 });
+    }, { timeout: 3e5 });
     if (options.uniforms) {
       await page.evaluate(({ unis, globals }) => {
         const pipeline = window[globals.renderingPipeline];
@@ -4668,8 +4717,8 @@ function registerRenderEffectFrame(server2) {
     "Render single frame, compute image metrics (mean RGB, variance, monochrome/blank detection), optional PNG capture.",
     renderEffectFrameSchema,
     async (args) => {
-      const config = getConfig();
-      const effectIds = resolveEffectIds(args, config.effectsDir);
+      const config2 = getConfig();
+      const effectIds = resolveEffectIds(args, config2.effectsDir);
       const session = new BrowserSession({ backend: args.backend });
       try {
         await session.setup();
@@ -4790,8 +4839,8 @@ var describeEffectFrameSchema = {
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend")
 };
 async function describeEffectFrame(session, effectId, prompt) {
-  const config = getConfig();
-  const ai = getAIProvider({ projectRoot: config.projectRoot });
+  const config2 = getConfig();
+  const ai = getAIProvider({ projectRoot: config2.projectRoot });
   if (!ai) return { status: "error", error: NO_AI_KEY_MESSAGE };
   const renderResult = await renderEffectFrame(session, effectId, { captureImage: true });
   if (renderResult.status === "error" || !renderResult.frame?.image_uri) {
@@ -4827,8 +4876,8 @@ function registerDescribeEffectFrame(server2) {
     "Render frame + AI vision analysis. User provides analysis prompt.",
     describeEffectFrameSchema,
     async (args) => {
-      const config = getConfig();
-      const effectIds = resolveEffectIds(args, config.effectsDir);
+      const config2 = getConfig();
+      const effectIds = resolveEffectIds(args, config2.effectsDir);
       const session = new BrowserSession({ backend: args.backend });
       try {
         await session.setup();
@@ -4876,7 +4925,7 @@ async function benchmarkEffectFPS(session, effectId, options = {}) {
       const s = document.getElementById("status");
       const t = (s?.textContent || "").toLowerCase();
       return t.includes("loaded") || t.includes("compiled") || t.includes("ready") || t.includes("error");
-    }, { timeout: 3e4 });
+    }, { timeout: 3e5 });
     const result = await page.evaluate(({ duration: duration2 }) => {
       return new Promise((resolve3) => {
         const frameTimes = [];
@@ -4937,8 +4986,8 @@ function registerBenchmarkEffectFPS(server2) {
     "Measure achieved FPS, jitter, frame timing stats against a target framerate.",
     benchmarkEffectFPSSchema,
     async (args) => {
-      const config = getConfig();
-      const effectIds = resolveEffectIds(args, config.effectsDir);
+      const config2 = getConfig();
+      const effectIds = resolveEffectIds(args, config2.effectsDir);
       const session = new BrowserSession({ backend: args.backend });
       try {
         await session.setup();
@@ -4982,7 +5031,7 @@ async function testUniformResponsiveness(session, effectId) {
       const s = document.getElementById("status");
       const t = (s?.textContent || "").toLowerCase();
       return t.includes("loaded") || t.includes("compiled") || t.includes("ready");
-    }, { timeout: 3e4 });
+    }, { timeout: 3e5 });
     await page.evaluate((globals) => {
       const w = window;
       if (w[globals.setPaused]) w[globals.setPaused](true);
@@ -5070,8 +5119,8 @@ function registerTestUniformResponsiveness(server2) {
     "For each uniform: render baseline, modify value, compare output. Returns per-uniform pass/fail.",
     testUniformResponsivenessSchema,
     async (args) => {
-      const config = getConfig();
-      const effectIds = resolveEffectIds(args, config.effectsDir);
+      const config2 = getConfig();
+      const effectIds = resolveEffectIds(args, config2.effectsDir);
       const session = new BrowserSession({ backend: args.backend });
       try {
         await session.setup();
@@ -5111,7 +5160,7 @@ async function testNoPassthrough(session, effectId) {
       const s = document.getElementById("status");
       const t = (s?.textContent || "").toLowerCase();
       return t.includes("loaded") || t.includes("compiled") || t.includes("ready") || t.includes("error");
-    }, { timeout: 3e4 });
+    }, { timeout: 3e5 });
     const result = await page.evaluate((globals) => {
       const w = window;
       const pipeline = w[globals.renderingPipeline];
@@ -5166,8 +5215,8 @@ function registerTestNoPassthrough(server2) {
     "Verify filter effects actually modify their input (>1% pixel difference).",
     testNoPassthroughSchema,
     async (args) => {
-      const config = getConfig();
-      const effectIds = resolveEffectIds(args, config.effectsDir);
+      const config2 = getConfig();
+      const effectIds = resolveEffectIds(args, config2.effectsDir);
       const session = new BrowserSession({ backend: args.backend });
       try {
         await session.setup();
@@ -5246,7 +5295,7 @@ async function testPixelParity(session, effectId, options = {}) {
     const s = document.getElementById("status");
     const t = (s?.textContent || "").toLowerCase();
     return t.includes("loaded") || t.includes("compiled") || t.includes("ready");
-  }, { timeout: 3e4 });
+  }, { timeout: 3e5 });
   await session.page.evaluate(({ globals, seed: seed2 }) => {
     const w = window;
     if (w[globals.setPaused]) w[globals.setPaused](true);
@@ -5319,8 +5368,8 @@ function registerTestPixelParity(server2) {
     "Render on both WebGL2 and WebGPU, compare pixel-by-pixel within epsilon tolerance.",
     testPixelParitySchema,
     async (args) => {
-      const config = getConfig();
-      const effectIds = resolveEffectIds(args, config.effectsDir);
+      const config2 = getConfig();
+      const effectIds = resolveEffectIds(args, config2.effectsDir);
       const session = new BrowserSession({ backend: "webgl2" });
       try {
         await session.setup();
@@ -5392,7 +5441,7 @@ async function runDslProgram(session, dsl, options = {}) {
         };
         poll();
       });
-    }, { dsl, timeout: 3e4, globals: session.globals });
+    }, { dsl, timeout: 3e5, globals: session.globals });
     if (compileResult.status === "error") {
       return { status: "error", error: compileResult.message };
     }
@@ -5675,8 +5724,8 @@ function extractUniforms(source, lang) {
   return uniforms;
 }
 async function compareShaders(effectId) {
-  const config = getConfig();
-  const effectDir = resolveEffectDir(effectId, config.effectsDir);
+  const config2 = getConfig();
+  const effectDir = resolveEffectDir(effectId, config2.effectsDir);
   const glslDir = join5(effectDir, "glsl");
   const wgslDir = join5(effectDir, "wgsl");
   const results = [];
@@ -5855,8 +5904,8 @@ function checkCamelCase(name) {
   return /^[a-z][a-zA-Z0-9]*$/.test(name);
 }
 async function checkEffectStructure(effectId) {
-  const config = getConfig();
-  const effectDir = resolveEffectDir(effectId, config.effectsDir);
+  const config2 = getConfig();
+  const effectDir = resolveEffectDir(effectId, config2.effectsDir);
   if (!existsSync5(effectDir)) {
     return { status: "error", error: `Effect directory not found: ${effectDir}` };
   }
@@ -5978,10 +6027,10 @@ var checkAlgEquivSchema = {
   effect_id: external_exports.string().describe('Effect ID (e.g., "synth/noise")')
 };
 async function checkAlgEquiv(effectId) {
-  const config = getConfig();
-  const ai = getAIProvider({ projectRoot: config.projectRoot });
+  const config2 = getConfig();
+  const ai = getAIProvider({ projectRoot: config2.projectRoot });
   if (!ai) return { status: "error", error: NO_AI_KEY_MESSAGE };
-  const effectDir = resolveEffectDir(effectId, config.effectsDir);
+  const effectDir = resolveEffectDir(effectId, config2.effectsDir);
   const glslDir = join7(effectDir, "glsl");
   const wgslDir = join7(effectDir, "wgsl");
   if (!existsSync6(glslDir) || !existsSync6(wgslDir)) {
@@ -6079,10 +6128,10 @@ var analyzeBranchingSchema = {
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Which shader language to analyze")
 };
 async function analyzeBranching(effectId, backend) {
-  const config = getConfig();
-  const ai = getAIProvider({ projectRoot: config.projectRoot });
+  const config2 = getConfig();
+  const ai = getAIProvider({ projectRoot: config2.projectRoot });
   if (!ai) return { status: "error", error: NO_AI_KEY_MESSAGE };
-  const effectDir = resolveEffectDir(effectId, config.effectsDir);
+  const effectDir = resolveEffectDir(effectId, config2.effectsDir);
   const shaderDir = join8(effectDir, backend === "webgpu" ? "wgsl" : "glsl");
   const ext = backend === "webgpu" ? ".wgsl" : ".glsl";
   if (!existsSync7(shaderDir)) {
@@ -6397,8 +6446,8 @@ function registerAnalyzeEffect(server2) {
     "Deep-dive into an effect: full definition, shader source, uniforms, passes.",
     analyzeEffectSchema,
     async (args) => {
-      const config = getConfig();
-      const effectDir = resolveEffectDir(args.effect_id, config.effectsDir);
+      const config2 = getConfig();
+      const effectDir = resolveEffectDir(args.effect_id, config2.effectsDir);
       if (!existsSync9(effectDir)) {
         return { content: [{ type: "text", text: JSON.stringify({ error: `Effect not found: ${args.effect_id}` }) }] };
       }
@@ -6875,59 +6924,168 @@ function registerListEffects(server2) {
 }
 
 // src/tools/utility/generate-manifest.ts
-import { readdirSync as readdirSync7, writeFileSync, existsSync as existsSync11, statSync as statSync2 } from "fs";
-import { join as join12, basename as basename6 } from "path";
+import { readdirSync as readdirSync7, readFileSync as readFileSync9, writeFileSync, existsSync as existsSync11, statSync as statSync2 } from "fs";
+import { join as join12 } from "path";
 var generateManifestSchema = {};
+var DESCRIPTION_RE = /description[:\s=]+"((?:[^"\\]|\\.)*)"|description[:\s=]+'((?:[^'\\]|\\.)*)'/;
+var EXTERNAL_TEXTURE_RE = /externalTexture[:\s=]+"((?:[^"\\]|\\.)*)"|externalTexture[:\s=]+'((?:[^'\\]|\\.)*)'/;
+var EXTERNAL_MESH_RE = /externalMesh[:\s=]+"((?:[^"\\]|\\.)*)"|externalMesh[:\s=]+'((?:[^'\\]|\\.)*)'/;
+var TAGS_RE = /\btags\s*[:=]\s*\[([^\]]*)\]/;
+var TEX_SURFACE_RE = /\btex\s*[:=]\s*\{[^}]*type\s*[:=]\s*["']surface["']/s;
+var PIPELINE_INPUTS = /* @__PURE__ */ new Set([
+  "inputTex",
+  "inputTex3d",
+  "inputXyz",
+  "inputVel",
+  "inputRgba",
+  "o0",
+  "o1",
+  "o2",
+  "o3",
+  "o4",
+  "o5",
+  "o6",
+  "o7"
+]);
+var AGENT_STATE_SURFACES = /* @__PURE__ */ new Set([
+  "global_xyz0",
+  "global_vel0",
+  "global_rgba0"
+]);
+function readDefinition(effectDir) {
+  const defFile = join12(effectDir, "definition.js");
+  if (!existsSync11(defFile)) return null;
+  try {
+    return readFileSync9(defFile, "utf-8");
+  } catch {
+    return null;
+  }
+}
+function extractMatch(content, re) {
+  const m = content.match(re);
+  if (!m) return null;
+  const raw = m[1] !== void 0 ? m[1] : m[2];
+  if (!raw) return null;
+  return raw.replace(/\\"/g, '"').replace(/\\'/g, "'");
+}
+function extractTags(content) {
+  const m = content.match(TAGS_RE);
+  if (!m) return null;
+  const tags = [];
+  for (const tm of m[1].matchAll(/["']([^"']+)["']/g)) {
+    tags.push(tm[1]);
+  }
+  return tags.length ? tags : null;
+}
+function isStarterEffect(content) {
+  const passesMatch = content.match(/passes\s*[=:]\s*\[/);
+  if (!passesMatch) return true;
+  const texturesMatch = content.match(/textures\s*[:=]\s*\{[\s\S]*?\}/);
+  let definesAgentSurfaces = false;
+  if (texturesMatch) {
+    for (const surface of AGENT_STATE_SURFACES) {
+      if (texturesMatch[0].includes(surface)) {
+        definesAgentSurfaces = true;
+        break;
+      }
+    }
+  }
+  const inputsSections = content.matchAll(/inputs:\s*\{[\s\S]*?\}/g);
+  for (const inputsMatch of inputsSections) {
+    const inputs = inputsMatch[0];
+    for (const pipelineInput of PIPELINE_INPUTS) {
+      const pattern = new RegExp(`:\\s*["']${pipelineInput}["']`);
+      if (pattern.test(inputs)) return false;
+    }
+    if (!definesAgentSurfaces) {
+      for (const surface of AGENT_STATE_SURFACES) {
+        const pattern = new RegExp(`:\\s*["']${surface}["']`);
+        if (pattern.test(inputs)) return false;
+      }
+    }
+  }
+  return true;
+}
+function scanShaders(effectDir) {
+  const result = { glsl: {}, wgsl: {} };
+  const glslDir = join12(effectDir, "glsl");
+  if (existsSync11(glslDir)) {
+    for (const name of readdirSync7(glslDir)) {
+      if (!statSync2(join12(glslDir, name)).isFile()) continue;
+      if (name.endsWith(".glsl")) {
+        result.glsl[name.slice(0, -5)] = "combined";
+      } else if (name.endsWith(".vert")) {
+        const stem = name.slice(0, -5);
+        if (!(stem in result.glsl)) result.glsl[stem] = {};
+        if (typeof result.glsl[stem] === "object") result.glsl[stem].v = 1;
+      } else if (name.endsWith(".frag")) {
+        const stem = name.slice(0, -5);
+        if (!(stem in result.glsl)) result.glsl[stem] = {};
+        if (typeof result.glsl[stem] === "object") result.glsl[stem].f = 1;
+      }
+    }
+  }
+  const wgslDir = join12(effectDir, "wgsl");
+  if (existsSync11(wgslDir)) {
+    for (const name of readdirSync7(wgslDir)) {
+      if (!statSync2(join12(wgslDir, name)).isFile()) continue;
+      if (name.endsWith(".wgsl")) {
+        result.wgsl[name.slice(0, -5)] = 1;
+      }
+    }
+  }
+  if (!Object.keys(result.glsl).length) delete result.glsl;
+  if (!Object.keys(result.wgsl).length) delete result.wgsl;
+  return result;
+}
+function sortKeys(obj) {
+  if (Array.isArray(obj)) return obj.map(sortKeys);
+  if (obj && typeof obj === "object") {
+    const sorted = {};
+    for (const key of Object.keys(obj).sort()) sorted[key] = sortKeys(obj[key]);
+    return sorted;
+  }
+  return obj;
+}
 function registerGenerateManifest(server2) {
   server2.tool(
     "generateManifest",
     "Rebuild effect manifest by scanning effects directory.",
     generateManifestSchema,
     async () => {
-      const config = getConfig();
-      const effectsDir = config.effectsDir;
+      const config2 = getConfig();
+      const effectsDir = config2.effectsDir;
       if (!existsSync11(effectsDir)) {
         return { content: [{ type: "text", text: JSON.stringify({ error: `Effects directory not found: ${effectsDir}` }) }] };
       }
       const manifest = {};
-      if (existsSync11(join12(effectsDir, "definition.json")) || existsSync11(join12(effectsDir, "definition.js"))) {
-        try {
-          const def = loadEffectDefinition(effectsDir);
-          const dirName = basename6(effectsDir);
-          manifest[dirName] = {
-            name: def.name || def.func,
-            description: def.description || "",
-            tags: def.tags || [],
-            passes: def.passes.length,
-            format: def.format
-          };
-        } catch {
-        }
-      }
-      const namespaces = readdirSync7(effectsDir);
+      const namespaces = readdirSync7(effectsDir).sort();
       for (const ns of namespaces) {
         const nsDir = join12(effectsDir, ns);
         if (!statSync2(nsDir).isDirectory()) continue;
-        const effects = readdirSync7(nsDir);
-        for (const effect of effects) {
-          const effectDir = join12(nsDir, effect);
+        const entries = readdirSync7(nsDir).sort();
+        for (const entry of entries) {
+          const effectDir = join12(nsDir, entry);
           if (!statSync2(effectDir).isDirectory()) continue;
-          try {
-            const def = loadEffectDefinition(effectDir);
-            const id = `${ns}/${effect}`;
-            manifest[id] = {
-              name: def.name || def.func,
-              description: def.description || "",
-              tags: def.tags || [],
-              passes: def.passes.length,
-              format: def.format
-            };
-          } catch {
-          }
+          const content = readDefinition(effectDir);
+          if (!content) continue;
+          const effectId = `${ns}/${entry}`;
+          const effectManifest = scanShaders(effectDir);
+          const description = extractMatch(content, DESCRIPTION_RE);
+          if (description) effectManifest.description = description;
+          const externalTexture = extractMatch(content, EXTERNAL_TEXTURE_RE);
+          if (externalTexture) effectManifest.externalTexture = externalTexture;
+          const externalMesh = extractMatch(content, EXTERNAL_MESH_RE);
+          if (externalMesh) effectManifest.externalMesh = externalMesh;
+          if (TEX_SURFACE_RE.test(content)) effectManifest.hasTex = true;
+          effectManifest.starter = isStarterEffect(content);
+          const tags = extractTags(content);
+          if (tags) effectManifest.tags = tags;
+          manifest[effectId] = effectManifest;
         }
       }
       const manifestPath = join12(effectsDir, "manifest.json");
-      writeFileSync(manifestPath, JSON.stringify({ effects: manifest }, null, 2));
+      writeFileSync(manifestPath, JSON.stringify(sortKeys(manifest)));
       return {
         content: [{
           type: "text",
@@ -6943,6 +7101,8 @@ function registerGenerateManifest(server2) {
 }
 
 // src/index.ts
+var config = getConfig();
+setMaxBrowsers(config.maxBrowsers);
 var server = new McpServer({
   name: "shade-mcp",
   version: "0.1.0"
