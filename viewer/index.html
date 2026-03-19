@@ -384,7 +384,8 @@
                     globals: globals,
                     passes: effectDef.passes || [],
                     shaders: effectDef.shaders || {},
-                    starter: effectDef.starter || false
+                    starter: effectDef.starter || false,
+                    asyncInit: async () => {}
                 };
                 
                 // Register effect

@@ -1,6 +1,6 @@
 # Effect Viewer
 
-The portable effects viewer is a hot-reloading development environment for testing effects locally.
+The portable effects viewer is a development environment for testing effects locally.
 
 ---
 
@@ -8,7 +8,7 @@ The portable effects viewer is a hot-reloading development environment for testi
 
 - **Full-page WebGL canvas** -- Effect renders at full viewport resolution
 - **Parameter controls** -- Sliders for all effect globals
-- **Hot-reloading** -- Automatically reloads when files change
+- **Manual reload** -- Click the Reload Effect button or refresh the page after changes
 - **Resize handling** -- Canvas adapts to window size changes
 - **Backend auto-detection** -- Automatically selects WebGL or WebGPU based on available shader files
 - **Backend toggle** -- Switch between WebGL and WebGPU when both shader types are available
@@ -19,30 +19,31 @@ The portable effects viewer is a hot-reloading development environment for testi
 
 ### 1. Start a Local Server
 
-The viewer loads the Noisemaker runtime from `shaders.noisedeck.app` via CDN. No local vendor setup is needed.
+The viewer loads the Noisemaker runtime from `shaders.noisedeck.app` via CDN. No local vendor setup is needed, but a local HTTP server is required (the viewer can't run from a `file://` URL).
+
+From the project root:
 
 ```bash
-python -m http.server 8080
+npm install
+npm run dev
 ```
 
-Or use any static file server (e.g., `npx serve`, `php -S localhost:8080`).
+Or use any static file server from the project root (e.g., `python -m http.server 8080`).
 
 ### 2. Open the Viewer
 
-Navigate to [http://localhost:8080/viewer/](http://localhost:8080/viewer/)
+Navigate to [http://localhost:2999/viewer/](http://localhost:2999/viewer/) (or the port your server uses)
 
 ---
 
-## Hot Reloading
+## Reloading Changes
 
-The viewer polls for changes to `effect/definition.json` every second. When changes are detected, it:
+After editing your effect files, click the **Reload Effect** button in the viewer or refresh the page. The viewer will:
 
-1. Reloads the effect definition
-2. Reloads the shader source
-3. Recompiles the effect
-4. Preserves current parameter values
-
-Edit files and save -- the viewer updates automatically.
+1. Reload the effect definition
+2. Reload the shader source
+3. Recompile the effect
+4. Preserve current parameter values
 
 ---
 
@@ -55,7 +56,7 @@ viewer/
 
 The Noisemaker runtime is loaded directly from the CDN at `shaders.noisedeck.app/<version>/`.
 
-The viewer loads the effect from `../effect/definition.json` and its shaders from `../effect/glsl/` and/or `../effect/wgsl/`.
+The viewer loads the effect from `/effect/definition.json` and its shaders from `/effect/glsl/` and/or `/effect/wgsl/`.
 
 ---
 
@@ -92,7 +93,7 @@ void main() {
 }
 ```
 
-The viewer will hot-reload your changes.
+Click the **Reload Effect** button in the viewer to see your changes.
 
 ---
 
@@ -123,8 +124,7 @@ The viewer will hot-reload your changes.
 
 ### Effect doesn't update
 
-- Verify hot-reload polling is working (check Network tab)
-- Try clicking the "↻ Reload Effect" button
+- Click the "↻ Reload Effect" button
 - Clear browser cache and reload
 
 ### "No shader found for program"

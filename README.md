@@ -18,35 +18,52 @@ Portable Effects are self-contained shader packages that work across all Noise F
 
 ```
 portable/
-├── effect/                 # Working example effect
-│   ├── definition.json     # Effect definition
-│   ├── dsl.txt             # Example DSL program
-│   ├── help.md             # Effect documentation
+├── effect/                     # Working example effect
+│   ├── definition.json         # Effect definition
+│   ├── dsl.txt                 # Example DSL program
+│   ├── help.md                 # Effect documentation
 │   ├── glsl/
-│   │   └── osc2d.glsl      # WebGL shader
+│   │   └── gradientSweep.glsl  # WebGL shader
 │   └── wgsl/
-│       └── osc2d.wgsl      # WebGPU shader
-├── viewer/                 # Hot-reloading effect viewer
-│   └── index.html          # Full-page viewer with param controls
-└── docs/                   # Format specification
+│       └── gradientSweep.wgsl  # WebGPU shader
+├── viewer/                     # Effect viewer
+│   └── index.html              # Full-page viewer with param controls
+├── docs/                       # Format specification
+├── package.json                # Dev server and packaging scripts
+├── package-portable.sh         # Bash packaging script
+└── package-portable.mjs        # Node.js packaging script
 ```
 
 ---
 
 ## Quick Start
 
-### 1. Edit Your Effect
+### 1. Clone This Repository
+
+```bash
+git clone https://github.com/noisedeck/portable.git
+cd portable
+```
+
+### 2. Edit Your Effect
 
 Modify files in the `effect/` directory:
 - `definition.json` -- Effect definition and parameters
 - `glsl/*.glsl` -- WebGL shader code
 - `wgsl/*.wgsl` -- WebGPU shader code
 
-### 2. Test in Viewer
+### 3. Test in Viewer
 
-Open `viewer/index.html` in a browser. The viewer automatically reloads when you save changes.
+The viewer needs a local HTTP server (it can't run from a `file://` URL). From the project root:
 
-### 3. Package for Distribution
+```bash
+npm install
+npm run dev
+```
+
+Then open [http://localhost:2999/viewer/](http://localhost:2999/viewer/). After making changes to your effect files, click the **Reload Effect** button in the viewer or refresh the page.
+
+### 4. Package for Distribution
 
 Create a ZIP archive for sharing or importing into applications:
 
@@ -60,58 +77,81 @@ npm run package
 
 This creates `effect.zip`.
 
-### 4. Import into Noisedeck
+### 5. Import into Noisedeck
 
 To use your effect in Noisedeck or other Noise Factor applications:
 
 1. Open the application
-2. Go to **File Menu** → **Import Effect from ZIP...**
+2. In the menu bar, go to **file** → **import effect from zip...**
 3. Select your `effect.zip` file
-4. Your effect will be available in the effect browser
-
-Use it in DSL programs:
-
-```javascript
-search user
-
-example().write(o0)
-render(o0)
-```
+4. The effect's DSL program will load automatically
 
 ---
 
 ## Example Effect
 
-The included `effect/` directory contains a complete portable effect based on `synth.solid`:
+The included `effect/` directory contains a complete portable effect -- a diagonal color gradient that smoothly rotates over time, looping seamlessly with the `time` uniform.
 
 **effect/definition.json:**
 ```json
 {
-  "name": "Example",
-  "namespace": "user",
-  "func": "example",
-  "description": "Solid color fill - example portable effect",
-  "starter": true,
-  "globals": {
-    "r": { "type": "float", "default": 0.5, "min": 0, "max": 1 },
-    "g": { "type": "float", "default": 0.5, "min": 0, "max": 1 },
-    "b": { "type": "float", "default": 0.5, "min": 0, "max": 1 },
-    "a": { "type": "float", "default": 1.0, "min": 0, "max": 1 }
-  },
-  "passes": [{ "name": "example", "program": "example", "outputs": { "color": "outputTex" } }]
+    "name": "Gradient Sweep",
+    "namespace": "user",
+    "func": "gradientSweep",
+    "description": "A diagonal color gradient that rotates over time",
+    "tags": ["color"],
+    "starter": true,
+    "globals": {
+        "speed": {
+            "type": "float",
+            "default": 1.0,
+            "min": 0.0,
+            "max": 4.0,
+            "step": 0.1,
+            "uniform": "speed"
+        }
+    },
+
+    "passes": [
+        {
+            "name": "main",
+            "program": "gradientSweep",
+            "inputs": {},
+            "outputs": {
+                "color": "outputTex"
+            }
+        }
+    ]
 }
 ```
 
-**effect/glsl/example.glsl:**
+**effect/glsl/gradientSweep.glsl:**
 ```glsl
 #version 300 es
 precision highp float;
 
-uniform float r, g, b, a;
+uniform vec2 resolution;
+uniform float time;
+uniform float speed;
+
 out vec4 fragColor;
 
+#define TAU 6.28318530718
+
 void main() {
-  fragColor = vec4(r * a, g * a, b * a, a);
+    vec2 uv = gl_FragCoord.xy / resolution;
+
+    // Rotate the gradient direction over time
+    // time loops 0→1, so multiply by TAU for a full rotation per loop
+    float angle = time * TAU * speed;
+    vec2 dir = vec2(cos(angle), sin(angle));
+
+    // Project UV onto the rotating direction
+    float t = dot(uv - 0.5, dir) + 0.5;
+
+    // Map to a smooth color gradient
+    vec3 color = vec3(t, t * 0.6 + 0.2, 1.0 - t);
+    fragColor = vec4(color, 1.0);
 }
 ```
 
@@ -145,10 +185,10 @@ my-effect/
 {
   "name": "My Effect",
   "func": "myEffect",
-  "namespace": "synth",
+  "namespace": "user",
   "description": "A simple shader effect",
   "starter": true,
-  "tags": ["noise", "custom"],
+  "tags": ["noise"],
   "globals": {
     "scale": {
       "type": "float",
@@ -170,11 +210,10 @@ uniform vec2 resolution;
 uniform float time;
 uniform float scale;
 
-in vec2 vUv;
 out vec4 fragColor;
 
 void main() {
-    vec2 uv = vUv * scale;
+    vec2 uv = gl_FragCoord.xy / resolution * scale;
     vec3 color = vec3(uv, sin(time) * 0.5 + 0.5);
     fragColor = vec4(color, 1.0);
 }
@@ -200,7 +239,7 @@ render(o0)
 | [**PARAMETERS.md**](docs/PARAMETERS.md) | Defining uniforms and UI controls |
 | [**SHADERS.md**](docs/SHADERS.md) | Writing GLSL and WGSL shaders |
 | [**DSL.md**](docs/DSL.md) | Using effects in the Polymorphic DSL |
-| [**VIEWER.md**](docs/VIEWER.md) | Using the hot-reloading effect viewer |
+| [**VIEWER.md**](docs/VIEWER.md) | Using the effect viewer |
 
 ---
 
@@ -208,6 +247,7 @@ render(o0)
 
 | Type | Namespace | Description |
 |------|-----------|-------------|
+| **User** | `user` | User-created portable effects |
 | **Starter** | `synth` | Generates 2D imagery from scratch |
 | **Filter** | `filter` | Transforms a 2D input texture |
 | **Mixer** | `mixer` | Blends two input textures |

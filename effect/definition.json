@@ -1,71 +1,30 @@
 {
-  "name": "Osc2D",
-  "namespace": "synth",
-  "func": "osc2d",
-  "description": "2D oscillator pattern",
-  "tags": ["geometric"],
-  "starter": true,
+    "name": "Gradient Sweep",
+    "namespace": "user",
+    "func": "gradientSweep",
+    "description": "A diagonal color gradient that rotates over time",
+    "tags": ["color"],
+    "starter": true,
 
-  "globals": {
-    "oscType": {
-      "type": "int",
-      "default": 0,
-      "min": 0,
-      "max": 6,
-      "step": 1,
-      "uniform": "oscType",
-      "choices": {
-        "sine": 0,
-        "linear": 1,
-        "sawtooth": 2,
-        "sawtoothInv": 3,
-        "square": 4,
-        "noise1d": 5,
-        "noise2d": 6
-      }
+    "globals": {
+        "speed": {
+            "type": "float",
+            "default": 1.0,
+            "min": 0.0,
+            "max": 4.0,
+            "step": 0.1,
+            "uniform": "speed"
+        }
     },
-    "frequency": {
-      "type": "int",
-      "default": 1,
-      "min": 1,
-      "max": 32,
-      "step": 1,
-      "uniform": "frequency"
-    },
-    "speed": {
-      "type": "float",
-      "default": 4.0,
-      "min": 0,
-      "max": 10,
-      "step": 0.1,
-      "uniform": "speed"
-    },
-    "rotation": {
-      "type": "float",
-      "default": 0,
-      "min": -180,
-      "max": 180,
-      "step": 1,
-      "uniform": "rotation"
-    },
-    "seed": {
-      "type": "int",
-      "default": 0,
-      "min": 0,
-      "max": 1000,
-      "step": 1,
-      "uniform": "seed"
-    }
-  },
 
-  "passes": [
-    {
-      "name": "main",
-      "program": "osc2d",
-      "inputs": {},
-      "outputs": {
-        "color": "outputTex"
-      }
-    }
-  ]
+    "passes": [
+        {
+            "name": "main",
+            "program": "gradientSweep",
+            "inputs": {},
+            "outputs": {
+                "color": "outputTex"
+            }
+        }
+    ]
 }

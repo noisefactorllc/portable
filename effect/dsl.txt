@@ -1,6 +1,6 @@
-search synth
+search user
 
-osc2d(oscType: oscType.sine, frequency: 4, speed: 2.0, rotation: 0, seed: 0)
+gradientSweep(speed: 1.0)
   .write(o0)
 
 render(o0)
