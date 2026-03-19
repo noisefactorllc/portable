@@ -6,7 +6,7 @@ The portable effects viewer is a development environment for testing effects loc
 
 ## Features
 
-- **Full-page WebGL canvas** - Effect renders at full viewport resolution
+- **Full-page canvas** - Effect renders at full viewport resolution
 - **Parameter controls** - Sliders for all effect globals
 - **Manual reload** - Click the Reload Effect button or refresh the page after changes
 - **Resize handling** - Canvas adapts to window size changes
@@ -77,21 +77,7 @@ Edit `effect/definition.json` to add or modify parameters:
 
 ### Change Shader Logic
 
-Edit your shader file (e.g., `effect/glsl/osc2d.glsl`):
-
-```glsl
-#version 300 es
-precision highp float;
-
-uniform float r, g, b, a;
-uniform float brightness;
-out vec4 fragColor;
-
-void main() {
-  vec3 color = vec3(r, g, b) * brightness;
-  fragColor = vec4(color * a, a);
-}
-```
+Edit your shader file (e.g., `effect/glsl/gradientSweep.glsl`). Make sure your shader declares uniforms matching the parameters in `definition.json`.
 
 Click the **Reload Effect** button in the viewer to see your changes.
 
@@ -99,14 +85,14 @@ Click the **Reload Effect** button in the viewer to see your changes.
 
 ## Creating a New Effect
 
-1. Copy the `effect/` directory
-2. Rename to match your effect name
-3. Update `definition.json`:
+The viewer always loads from the `effect/` directory. To create a new effect, replace the files in place:
+
+1. Update `effect/definition.json`:
    - Change `name`, `func`, `description`
    - Define your `globals`
-   - Update pass names
-4. Write your shader in `glsl/` and/or `wgsl/` (both recommended for full interoperability)
-5. Update the viewer's fetch path in `index.html` if needed
+   - Update `passes` to reference your shader program name
+2. Replace the shader files in `effect/glsl/` and/or `effect/wgsl/` with your own
+3. Make sure shader filenames match the `program` name in your `passes` array
 
 ---
 
@@ -142,12 +128,12 @@ Click the **Reload Effect** button in the viewer to see your changes.
 
 ## Advanced: Loading Different Effects
 
-To load a different effect, modify the fetch paths in `viewer/index.html`:
+The viewer loads from `/effect/` by default. To load from a different directory, modify the fetch paths in `viewer/index.html`:
 
 ```javascript
 // Load effect definition from JSON
 async function loadEffectDefinition() {
-    const response = await fetch('../my-other-effect/definition.json', { cache: 'no-store' });
+    const response = await fetch('/my-other-effect/definition.json', { cache: 'no-store' });
     // ...
 }
 ```

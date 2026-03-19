@@ -4,13 +4,19 @@
 
 **The Portable Effects Format** is an open standard for sharing shader effects across the Noise Factor ecosystem.
 
-This repository serves as the **canonical source of truth** for the Portable Effects specification.
+This repository serves as the **canonical source of truth** for the Portable Effects specification. 
 
 ---
 
 ## What Are Portable Effects?
 
 Portable Effects are self-contained shader packages that work across all Noise Factor applications.
+
+---
+
+## Creating New Effects
+
+You can create new effects using this repository, but there's also a web-based IDE at [https://foundry.noisedeck.app/](https://foundry.noisedeck.app/). Either way, you can create and package your effects for use in Noisedeck or other Noise Factor applications.
 
 ---
 
@@ -48,9 +54,9 @@ cd portable
 ### 2. Edit Your Effect
 
 Modify files in the `effect/` directory:
-- `definition.json` -- Effect definition and parameters
-- `glsl/*.glsl` -- WebGL shader code
-- `wgsl/*.wgsl` -- WebGPU shader code
+- `definition.json` - Effect definition and parameters
+- `glsl/*.glsl` - WebGL shader code
+- `wgsl/*.wgsl` - WebGPU shader code
 
 ### 3. Test in Viewer
 
@@ -90,7 +96,7 @@ To use your effect in Noisedeck or other Noise Factor applications:
 
 ## Example Effect
 
-The included `effect/` directory contains a complete portable effect -- a diagonal color gradient that smoothly rotates over time, looping seamlessly with the `time` uniform.
+The included `effect/` directory contains a complete portable effect: a diagonal color gradient that smoothly rotates over time, looping seamlessly with the `time` uniform.
 
 **effect/definition.json:**
 ```json
@@ -196,7 +202,15 @@ my-effect/
       "min": 0.1,
       "max": 10.0
     }
-  }
+  },
+  "passes": [
+    {
+      "name": "render",
+      "program": "main",
+      "inputs": {},
+      "outputs": { "fragColor": "outputTex" }
+    }
+  ]
 }
 ```
 
@@ -264,4 +278,4 @@ The `starter` field in definition.json determines whether an effect can begin a 
 
 This specification is released under the MIT License.
 
-Effects you create are your own -- share them however you like.
+Effects you create are your own. Share them however you like.
