@@ -84,7 +84,7 @@ These uniforms are always available to your shader:
 | `time` | `uniform float time` | `@group(0) @binding(2) var<uniform> time: f32` | Normalized time 0.0-1.0 |
 | `frame` | `uniform int frame` | `@group(0) @binding(N) var<uniform> frame: i32` | Current frame number |
 
-In WGSL, `frame` and `mouse` are bound after effect-specific uniforms. Effect-specific uniforms start at `@binding(3)` and continue sequentially.
+In WGSL, `frame` is bound after effect-specific uniforms. Effect-specific uniforms start at `@binding(3)` and continue sequentially.
 
 ---
 

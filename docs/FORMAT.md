@@ -90,11 +90,9 @@ The definition file describes the effect's identity, parameters, and rendering s
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Display name for the effect |
-| `func` | string | DSL function name (lowercase, no spaces) |
+| `func` | string | DSL function name (camelCase, no spaces) |
 
-If only one is provided, the other is inferred:
-- `func` defaults to lowercase `name` with spaces removed
-- `name` defaults to `func`
+At least one of `name` or `func` must be provided. If `func` is omitted, the `name` value is used as the function name, so it should be a valid identifier. It is recommended to always provide `func` explicitly.
 
 ---
 
@@ -109,8 +107,8 @@ If only one is provided, the other is inferred:
 | `globals` | object | `{}` | Parameter definitions |
 | `passes` | array | auto | Rendering pass configuration |
 | `textures` | object | `{}` | Internal texture definitions |
-| `uniformLayout` | object | -- | UI grouping hints |
-| `uniformLayouts` | object | -- | Multiple UI layouts |
+| `uniformLayout` | object | | UI grouping hints |
+| `uniformLayouts` | object | | Multiple UI layouts |
 
 ---
 
@@ -188,49 +186,49 @@ Tags help categorize effects for searchability:
 
 | Tag | Description |
 |-----|-------------|
-| `noise` | Noise-based patterns |
 | `color` | Color manipulation |
-| `distort` | Spatial distortion |
-| `geometric` | Geometric patterns |
-| `animation` | Time-based animation |
-| `transform` | Coordinate transforms |
-| `blur` | Blur/smoothing effects |
-| `3d` | 3D rendering techniques |
-| `custom` | User-created |
+| `distort` | Input distortion |
+| `edges` | Accentuate or isolate texture edges |
+| `geometric` | Shapes |
+| `lens` | Emulated camera lens effects |
+| `noise` | Noise-based patterns |
+| `transform` | Moves stuff around |
+| `util` | Utility function |
+| `sim` | Simulations with temporal state |
+| `3d` | 3D volumetric effects |
+| `audio` | Audio-reactive effects |
 
-You can use any tags, but these are recognized by the built-in search.
+These tags are recognized by the built-in search. You can use any tags, but only these will appear as filter options.
 
 ---
 
 ## Passes
 
-The `passes` array defines the rendering pipeline. If omitted, a default single-pass structure is generated based on the `starter` field.
+The `passes` array defines the rendering pipeline. If omitted, a default single-pass structure is generated from the shader files.
 
-### Auto-Generated Passes
+It is recommended to always provide explicit passes, especially for filter effects that need `inputs`.
 
-When `passes` is not specified:
-
-**For starter effects (`starter: true`):**
+**Starter effect (single pass):**
 ```json
-[{
+"passes": [{
   "name": "render",
-  "program": "{first_shader_name}",
+  "program": "main",
   "inputs": {},
   "outputs": { "fragColor": "outputTex" }
 }]
 ```
 
-**For filter effects (`starter: false`):**
+**Filter effect (single pass):**
 ```json
-[{
+"passes": [{
   "name": "render",
-  "program": "{first_shader_name}",
+  "program": "main",
   "inputs": { "inputTex": "source" },
   "outputs": { "fragColor": "outputTex" }
 }]
 ```
 
-### Explicit Pass Definition
+### Multi-Pass Definition
 
 ```json
 "passes": [

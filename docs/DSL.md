@@ -261,7 +261,7 @@ search synth, filter, mixer
 cell(scale: 50)
   .write(o0)
 
-// Blend cells and noise with pattternMix
+// Blend cells and noise with patternMix
 noise(xScale: 50, yScale: 50)
   .palette(index: brushedMetal)
   .patternMix(tex: read(o0))
