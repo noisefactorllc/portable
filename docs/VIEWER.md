@@ -6,12 +6,12 @@ The portable effects viewer is a development environment for testing effects loc
 
 ## Features
 
-- **Full-page WebGL canvas** -- Effect renders at full viewport resolution
-- **Parameter controls** -- Sliders for all effect globals
-- **Manual reload** -- Click the Reload Effect button or refresh the page after changes
-- **Resize handling** -- Canvas adapts to window size changes
-- **Backend auto-detection** -- Automatically selects WebGL or WebGPU based on available shader files
-- **Backend toggle** -- Switch between WebGL and WebGPU when both shader types are available
+- **Full-page WebGL canvas** - Effect renders at full viewport resolution
+- **Parameter controls** - Sliders for all effect globals
+- **Manual reload** - Click the Reload Effect button or refresh the page after changes
+- **Resize handling** - Canvas adapts to window size changes
+- **Backend auto-detection** - Automatically selects WebGL or WebGPU based on available shader files
+- **Backend toggle** - Switch between WebGL and WebGPU when both shader types are available
 
 ---
 

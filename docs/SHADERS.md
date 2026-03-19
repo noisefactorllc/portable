@@ -2,8 +2,8 @@
 
 This guide covers writing compatible fragment shaders for portable effects. The format supports two shader languages:
 
-- **GLSL** (OpenGL Shading Language) -- targets WebGL2 via GLSL ES 3.0
-- **WGSL** (WebGPU Shading Language) -- targets WebGPU
+- **GLSL** (OpenGL Shading Language) - targets WebGL2 via GLSL ES 3.0
+- **WGSL** (WebGPU Shading Language) - targets WebGPU
 
 Both languages can express the same effects. Providing shaders in both languages ensures your effect runs on the widest range of platforms.
 
@@ -81,7 +81,7 @@ These uniforms are always available to your shader:
 |---------|-----------------|-------------------|-------------|
 | `resolution` | `uniform vec2 resolution` | `@group(0) @binding(0) var<uniform> resolution: vec2<f32>` | Canvas size in pixels |
 | `aspect` | `uniform float aspect` | `@group(0) @binding(1) var<uniform> aspect: f32` | Width / height |
-| `time` | `uniform float time` | `@group(0) @binding(2) var<uniform> time: f32` | Normalized time 0.0--1.0 |
+| `time` | `uniform float time` | `@group(0) @binding(2) var<uniform> time: f32` | Normalized time 0.0-1.0 |
 | `frame` | `uniform int frame` | `@group(0) @binding(N) var<uniform> frame: i32` | Current frame number |
 
 In WGSL, `frame` and `mouse` are bound after effect-specific uniforms. Effect-specific uniforms start at `@binding(3)` and continue sequentially.
@@ -440,7 +440,7 @@ effect/
 └── definition.json
 ```
 
-Configure passes in `definition.json` (language-agnostic -- the runtime selects the correct directory):
+Configure passes in `definition.json` (language-agnostic - the runtime selects the correct directory):
 
 ```json
 "passes": [
@@ -545,7 +545,7 @@ The `definition.json` references programs by name (e.g., `"program": "myeffect"`
 
 When porting between languages, pay attention to:
 
-- **Y-axis origin:** GLSL (bottom-left) vs WGSL (top-left) -- flip with `resolution.y - position.y`
+- **Y-axis origin:** GLSL (bottom-left) vs WGSL (top-left) - flip with `resolution.y - position.y`
 - **Uniform bindings:** WGSL requires explicit `@group` and `@binding` annotations
 - **Texture sampling:** WGSL needs separate `sampler` and `texture_2d` bindings
 - **Function syntax:** `fn name(param: type) -> returnType` instead of `returnType name(type param)`

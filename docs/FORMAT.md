@@ -135,8 +135,8 @@ For portable effects, `user` is the recommended namespace. The effect will be re
 
 The `starter` field determines whether an effect can begin a DSL chain:
 
-- **`starter: true`** -- Effect generates imagery from scratch (no input required)
-- **`starter: false`** -- Effect requires input from a previous effect in the chain
+- **`starter: true`** - Effect generates imagery from scratch (no input required)
+- **`starter: false`** - Effect requires input from a previous effect in the chain
 
 ### Starter Effects (synth-type)
 
@@ -306,9 +306,9 @@ An effect must provide at least one shader directory. If both are provided, each
 
 When an effect is loaded, it's registered under multiple keys for flexible lookup:
 
-1. `{namespace}.{func}` -- Full namespaced name (e.g., `user.plasmaWave`)
-2. `{namespace}/{func}` -- Slash-separated ID (e.g., `user/plasmaWave`)
-3. `{func}` -- Plain function name (e.g., `plasmaWave`)
+1. `{namespace}.{func}` - Full namespaced name (e.g., `user.plasmaWave`)
+2. `{namespace}/{func}` - Slash-separated ID (e.g., `user/plasmaWave`)
+3. `{func}` - Plain function name (e.g., `plasmaWave`)
 
 The DSL's `search` directive controls which namespaces are searched:
 

@@ -14,7 +14,7 @@ search {namespaces}
 render({output})
 ```
 
-The `search` directive is required. The `render()` directive is optional -- if omitted, no output is displayed.
+The `search` directive is required. The `render()` directive is optional. If omitted, no output is displayed.
 
 ### Example
 
