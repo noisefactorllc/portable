@@ -14,7 +14,7 @@ search {namespaces}
 render({output})
 ```
 
-The `search` directive is required. The `render()` directive is optional. If omitted, no output is displayed.
+The `search` directive is required. The `render()` directive is optional. If omitted, the last used write surface will be rendered to screen.
 
 ### Example
 
@@ -52,12 +52,12 @@ render(o0)
 
 | Namespace | Description |
 |-----------|-------------|
-| `user` | User-created portable effects |
+| `user` | User-created effects |
 | `synth` | 2D generators (starters) |
 | `filter` | 2D image processors |
-| `mixer` | Blend/composite effects |
-| `points` | Particle systems |
-| `render` | Utility effects |
+| `mixer` | Blend/composite effects combining two inputs |
+| `points` | Particle system behaviors |
+| `render` | Utilities for rendering 3d effects, loops, meshes, particles |
 | `synth3d` | 3D volumetric generators |
 | `filter3d` | 3D volumetric processors |
 | `classicNoisedeck` | Legacy Noisedeck effects |
@@ -76,7 +76,7 @@ noise().blur().adjust().write(o0)
 
 ### Starter Effects
 
-Starter effects begin a chain (they generate imagery):
+Starter effects begin a chain. They can generate imagery without additional input:
 
 ```
 search synth
@@ -86,7 +86,7 @@ noise().write(o0)
 
 ### Filter Effects
 
-Filter effects must follow another effect:
+Filter effects must follow another effect that is used as its input:
 
 ```
 search synth, filter
@@ -125,7 +125,7 @@ noise(xScale: 50, yScale: 50, octaves: 5, speed: 1)
 | Boolean | `true`/`false` | `invert: true` |
 | Enum | `name` | `mode: multiply` |
 | Color | `#rrggbb` | `color: #ff6600` |
-| Array | `[values]` | `offset: [0.5, 0.3]` |
+| Array | `vec2(x, y)` or `vec3(x, y, z)` | `offset: vec2(0.5, 0.3)` |
 
 ### Color Syntax
 
@@ -331,9 +331,9 @@ render(o1)
 ```
 search synth, filter, render
 
-loopBegin(alpha: 50)
-  .noise(blend: 0.05)
-  .blur(radiusX: 1, radiusY: 1)
+noise()
+.loopBegin(alpha: 100)
+  .blur(radiusX: 10, radiusY: 1)
   .loopEnd()
   .write(o0)
 
@@ -406,6 +406,8 @@ myEffect().write(o0)
 5. **Test effects in isolation first**
    ```
    search user
+
    myEffect().write(o0)
+   
    render(o0)
    ```
