@@ -14,7 +14,7 @@ Both languages can express the same effects. Providing shaders in both languages
 ### GLSL
 
 1. Use GLSL ES 3.0 (`#version 300 es`)
-2. Declare `precision highp float;`
+2. Declare `precision highp float;` and `precision highp int;` if needed
 3. Compute texture coordinates from `gl_FragCoord.xy / resolution`
 4. Use `out vec4 fragColor;` for output
 5. Implement `void main()`
@@ -75,16 +75,18 @@ Key differences in the WGSL version:
 
 ## Built-in Uniforms
 
-These uniforms are always available to your shader:
+These uniforms are always available to your shader. Only declare the ones you need.
 
-| Uniform | GLSL Declaration | WGSL Declaration | Description |
-|---------|-----------------|-------------------|-------------|
-| `resolution` | `uniform vec2 resolution` | `@group(0) @binding(0) var<uniform> resolution: vec2<f32>` | Canvas size in pixels |
-| `aspect` | `uniform float aspect` | `@group(0) @binding(1) var<uniform> aspect: f32` | Width / height |
-| `time` | `uniform float time` | `@group(0) @binding(2) var<uniform> time: f32` | Normalized time 0.0-1.0 |
-| `frame` | `uniform int frame` | `@group(0) @binding(N) var<uniform> frame: i32` | Current frame number |
+| Uniform | GLSL Type | WGSL Type | Description |
+|---------|-----------|-----------|-------------|
+| `resolution` | `vec2` | `vec2<f32>` | Canvas size in pixels |
+| `aspect` | `float` | `f32` | Width / height |
+| `time` | `float` | `f32` | Normalized time 0.0-1.0 |
+| `frame` | `int` | `i32` | Current frame number |
 
-In WGSL, `frame` is bound after effect-specific uniforms. Effect-specific uniforms start at `@binding(3)` and continue sequentially.
+In GLSL, declare these as regular uniforms (e.g., `uniform vec2 resolution;`).
+
+In WGSL, each uniform gets an explicit `@group(0) @binding(N)` annotation. Binding numbers must be unique within the shader but do not need to follow a fixed scheme. A common convention is `resolution` at 0, `aspect` at 1, `time` at 2, with effect-specific uniforms continuing from 3, but you can skip unused bindings.
 
 ---
 
@@ -173,7 +175,7 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
 }
 ```
 
-The Y-flip (`resolution.y - position.y`) is essential for visual parity between GLSL and WGSL versions of the same effect.
+The Y-flip (`resolution.y - position.y`) ensures visual parity between GLSL and WGSL versions of the same effect. If you don't need to match a GLSL version, the flip is optional.
 
 ---
 
@@ -266,7 +268,11 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
 }
 ```
 
-Key difference: GLSL uses `texture(sampler2D, uv)` while WGSL uses `textureSample(texture_2d, sampler, uv)` with the texture and sampler declared as separate bindings.
+Key differences in the WGSL filter version:
+
+- GLSL uses `texture(sampler2D, uv)` while WGSL uses `textureSample(texture_2d, sampler, uv)`
+- WGSL requires separate `sampler` and `texture_2d` bindings (GLSL combines them into `sampler2D`)
+- Binding numbers are flexible; place the sampler and texture at any unused binding indices
 
 ---
 
