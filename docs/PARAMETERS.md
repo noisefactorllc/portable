@@ -132,11 +132,25 @@ GLSL:
 uniform vec2 offset;
 ```
 
+### vec3
+
+```json
+"lightDirection": {
+  "type": "vec3",
+  "default": [1.0, 0.5, 0.0]
+}
+```
+
+GLSL:
+```glsl
+uniform vec3 lightDirection;
+```
+
 ### vec3 (Color)
 
 ```json
 "tint": {
-  "type": "vec3",
+  "type": "color",
   "default": [1.0, 0.5, 0.0]
 }
 ```
@@ -146,36 +160,32 @@ GLSL:
 uniform vec3 tint;
 ```
 
-**Note:** vec3 parameters are often displayed as color pickers in the UI. Values are normalized 0.0–1.0.
+**Note:** in the DSL, params of color type use hexadecimal formatting: `colorize(tint: #ff00ff)`. Format conversion is done automatically
 
-### vec4 / color
+### vec4
 
 ```json
-"overlayColor": {
+"viewport": {
   "type": "vec4",
-  "default": [1.0, 0.0, 0.5, 0.5]
-}
-```
-
-Or using the `color` alias:
-
-```json
-"overlayColor": {
-  "type": "color",
-  "default": [1.0, 0.0, 0.5, 0.5]
+  "default": [0.0, 0.0, 1.0, 1.0]
 }
 ```
 
 GLSL:
 ```glsl
-uniform vec4 overlayColor;
+uniform vec4 viewport;
 ```
 
 ---
 
 ## Choice/Enum Parameters
 
-For dropdown selections:
+For dropdown selections: 
+
+**Note:** choice names MUST:
+* Not begin with a number
+* Not contain a hyphen ( - )
+* Not contain spaces or special characters
 
 ```json
 "blendMode": {
@@ -271,19 +281,34 @@ void main() {
 
 ---
 
-## UI Layout Hints
+## UI Grouping
 
-The `uniformLayout` property groups parameters in the UI:
+Parameters can be grouped into categories in the UI using the `ui.category` property on each parameter:
 
 ```json
-"uniformLayout": {
-  "Basic": ["scale", "speed"],
-  "Colors": ["color1", "color2"],
-  "Advanced": ["octaves", "lacunarity"]
+"xScale": {
+  "type": "float",
+  "default": 75,
+  "min": 1,
+  "max": 100,
+  "ui": {
+    "label": "horiz scale",
+    "category": "transform"
+  }
+},
+"speed": {
+  "type": "float",
+  "default": 1.0,
+  "min": 0.0,
+  "max": 2.0,
+  "ui": {
+    "label": "speed",
+    "category": "animation"
+  }
 }
 ```
 
-Parameters not in any group appear under "Other".
+Parameters with the same `category` value are grouped together. Parameters without a category appear ungrouped.
 
 ---
 
@@ -300,7 +325,7 @@ Parameters not in any group appear under "Other".
 }
 ```
 
-Without `min`/`max`, sliders use 0.0–1.0 which may not be useful.
+Without `min`/`max`, sliders default to 0-100 which may not be appropriate for your parameter.
 
 ### 2. Use Sensible Defaults
 
@@ -337,14 +362,12 @@ Use the `description` field:
 
 ### 5. Group Related Parameters
 
-Use `uniformLayout` to organize complex effects:
+Use `ui.category` to organize complex effects:
 
 ```json
-"uniformLayout": {
-  "Noise": ["scale", "octaves", "lacunarity", "persistence"],
-  "Animation": ["speed", "direction"],
-  "Color": ["palette", "saturation", "brightness"]
-}
+"scale": { "type": "float", "default": 3.0, "ui": { "category": "noise" } },
+"octaves": { "type": "int", "default": 5, "ui": { "category": "noise" } },
+"speed": { "type": "float", "default": 0.5, "ui": { "category": "animation" } }
 ```
 
 ---
@@ -363,51 +386,61 @@ Use `uniformLayout` to organize complex effects:
       "default": 3.0,
       "min": 0.5,
       "max": 20.0,
-      "description": "Base frequency scale"
+      "description": "Base frequency scale",
+      "ui": { "category": "noise" }
     },
     "octaves": {
       "type": "int",
       "default": 5,
       "min": 1,
       "max": 10,
-      "description": "Number of noise layers"
+      "description": "Number of noise layers",
+      "ui": { "category": "noise" }
     },
     "lacunarity": {
       "type": "float",
       "default": 2.0,
       "min": 1.0,
       "max": 4.0,
-      "description": "Frequency multiplier per octave"
+      "description": "Frequency multiplier per octave",
+      "ui": { "category": "noise" }
     },
     "persistence": {
       "type": "float",
       "default": 0.5,
       "min": 0.0,
       "max": 1.0,
-      "description": "Amplitude decay per octave"
+      "description": "Amplitude decay per octave",
+      "ui": { "category": "noise" }
     },
     "speed": {
       "type": "float",
       "default": 0.5,
       "min": 0.0,
       "max": 2.0,
-      "description": "Animation speed"
+      "description": "Animation speed",
+      "ui": { "category": "animation" }
     },
     "color1": {
-      "type": "vec3",
+      "type": "color",
       "default": [0.0, 0.0, 0.2],
-      "description": "Dark color"
+      "description": "Dark color",
+      "ui": { "category": "color" }
     },
     "color2": {
-      "type": "vec3",
+      "type": "color",
       "default": [1.0, 0.8, 0.4],
-      "description": "Light color"
+      "description": "Light color",
+      "ui": { "category": "color" }
     }
   },
-  "uniformLayout": {
-    "Noise": ["scale", "octaves", "lacunarity", "persistence"],
-    "Animation": ["speed"],
-    "Color": ["color1", "color2"]
-  }
+  "passes": [
+    {
+      "name": "render",
+      "program": "main",
+      "inputs": {},
+      "outputs": { "fragColor": "outputTex" }
+    }
+  ]
 }
 ```

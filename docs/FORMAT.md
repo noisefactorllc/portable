@@ -107,8 +107,6 @@ At least one of `name` or `func` must be provided. If `func` is omitted, the `na
 | `globals` | object | `{}` | Parameter definitions |
 | `passes` | array | auto | Rendering pass configuration |
 | `textures` | object | `{}` | Internal texture definitions |
-| `uniformLayout` | object | | UI grouping hints |
-| `uniformLayouts` | object | | Multiple UI layouts |
 
 ---
 
