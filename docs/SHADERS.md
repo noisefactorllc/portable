@@ -15,7 +15,7 @@ Both languages can express the same effects. Providing shaders in both languages
 
 1. Use GLSL ES 3.0 (`#version 300 es`)
 2. Declare `precision highp float;`
-3. Use `in vec2 vUv;` for texture coordinates (or compute from `gl_FragCoord`)
+3. Compute texture coordinates from `gl_FragCoord.xy / resolution`
 4. Use `out vec4 fragColor;` for output
 5. Implement `void main()`
 
@@ -40,11 +40,10 @@ precision highp float;
 uniform vec2 resolution;
 uniform float time;
 
-in vec2 vUv;
 out vec4 fragColor;
 
 void main() {
-    vec2 uv = vUv;
+    vec2 uv = gl_FragCoord.xy / resolution;
     vec3 color = vec3(uv, 0.5);
     fragColor = vec4(color, 1.0);
 }
@@ -84,7 +83,6 @@ These uniforms are always available to your shader:
 | `aspect` | `uniform float aspect` | `@group(0) @binding(1) var<uniform> aspect: f32` | Width / height |
 | `time` | `uniform float time` | `@group(0) @binding(2) var<uniform> time: f32` | Normalized time 0.0--1.0 |
 | `frame` | `uniform int frame` | `@group(0) @binding(N) var<uniform> frame: i32` | Current frame number |
-| `mouse` | `uniform vec4 mouse` | `@group(0) @binding(N) var<uniform> mouse: vec4<f32>` | Mouse state (xy: position, zw: click) |
 
 In WGSL, `frame` and `mouse` are bound after effect-specific uniforms. Effect-specific uniforms start at `@binding(3)` and continue sequentially.
 
@@ -128,9 +126,9 @@ Note: WGSL uses `const` for compile-time constants instead of `#define`.
 
 ```glsl
 void main() {
-    vec2 uv = vUv;                                          // Normalized 0-1
+    vec2 uv = gl_FragCoord.xy / resolution;                  // Normalized 0-1
     vec2 px = gl_FragCoord.xy;                               // Pixel coordinates
-    vec2 centered = (vUv - 0.5) * vec2(aspect, 1.0);   // Centered, aspect-corrected
+    vec2 centered = (uv - 0.5) * vec2(aspect, 1.0);         // Centered, aspect-corrected
 }
 ```
 
@@ -152,15 +150,12 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
 
 ### GLSL
 
-GLSL provides two ways to get fragment position:
-
-- `vUv` -- normalized coordinates, origin at bottom-left (0,0), top-right (1,1)
-- `gl_FragCoord.xy` -- pixel coordinates
+Use `gl_FragCoord.xy / resolution` to get normalized coordinates (0,0 at bottom-left, 1,1 at top-right):
 
 ```glsl
 void main() {
-    vec2 uv = vUv - 0.5;         // Center at origin
-    uv.x *= aspect;          // Aspect correction
+    vec2 uv = gl_FragCoord.xy / resolution - 0.5;  // Center at origin
+    uv.x *= aspect;                                 // Aspect correction
 }
 ```
 
@@ -196,11 +191,10 @@ uniform vec2 resolution;
 uniform float time;
 uniform float scale;
 
-in vec2 vUv;
 out vec4 fragColor;
 
 void main() {
-    vec2 uv = vUv * scale;
+    vec2 uv = gl_FragCoord.xy / resolution * scale;
     float pattern = sin(uv.x * 10.0) * sin(uv.y * 10.0);
     pattern = pattern * 0.5 + 0.5;
     fragColor = vec4(vec3(pattern), 1.0);
@@ -239,11 +233,11 @@ uniform vec2 resolution;
 uniform sampler2D inputTex;
 uniform float amount;
 
-in vec2 vUv;
 out vec4 fragColor;
 
 void main() {
-    vec4 color = texture(inputTex, vUv);
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec4 color = texture(inputTex, uv);
     float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
     color.rgb = mix(color.rgb, vec3(gray), amount);
     fragColor = color;
@@ -348,7 +342,7 @@ fn palette(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> ve
 
 ```glsl
 void main() {
-    vec2 uv = vUv - 0.5;
+    vec2 uv = gl_FragCoord.xy / resolution - 0.5;
     uv.x *= aspect;
     float r = length(uv);
     float theta = atan(uv.y, uv.x);
@@ -383,7 +377,7 @@ Note: GLSL uses `atan(y, x)` while WGSL uses `atan2(y, x)`.
 
 void main() {
     float t = time * TAU;
-    vec2 uv = vUv;
+    vec2 uv = gl_FragCoord.xy / resolution;
     uv += vec2(sin(t), cos(t)) * 0.1;
 }
 ```
@@ -411,7 +405,7 @@ uniform float speed;
 uniform vec2 direction;
 
 void main() {
-    vec2 uv = fract(vUv + direction * time * speed);
+    vec2 uv = fract(gl_FragCoord.xy / resolution + direction * time * speed);
 }
 ```
 
@@ -515,7 +509,7 @@ Output intermediate values as colors to debug visually.
 ```glsl
 fragColor = vec4(vec3(someValue), 1.0);          // Float as grayscale
 fragColor = vec4(someVec2, 0.0, 1.0);            // vec2 as RG
-fragColor = vec4(vUv, 0.0, 1.0);                 // UV coordinates
+fragColor = vec4(gl_FragCoord.xy / resolution, 0.0, 1.0);  // UV coordinates
 ```
 
 #### WGSL

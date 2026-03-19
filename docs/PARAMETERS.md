@@ -239,8 +239,7 @@ These uniforms are automatically provided by the runtime and should NOT be defin
 | `resolution` | `vec2` | Canvas size in pixels |
 | `time` | `float` | Normalized time 0.0–1.0 over loop duration |
 | `frame` | `int` | Current frame number |
-| `aspectRatio` | `float` | Width / height ratio |
-| `mouse` | `vec4` | Mouse position and button state |
+| `aspect` | `float` | Width / height ratio |
 
 ### Using Time
 
@@ -261,10 +260,12 @@ void main() {
 For filter effects, the input texture is bound to a sampler:
 
 ```glsl
+uniform vec2 resolution;
 uniform sampler2D inputTex;
 
 void main() {
-    vec4 color = texture(inputTex, vUv);
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec4 color = texture(inputTex, uv);
 }
 ```
 
@@ -354,7 +355,7 @@ Use `uniformLayout` to organize complex effects:
 {
   "name": "Fractal Noise",
   "func": "fractalNoise",
-  "namespace": "synth",
+  "namespace": "user",
   "starter": true,
   "globals": {
     "scale": {

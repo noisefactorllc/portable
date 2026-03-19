@@ -46,7 +46,7 @@ The definition file describes the effect's identity, parameters, and rendering s
 {
   "name": "Plasma Wave",
   "func": "plasmaWave",
-  "namespace": "synth",
+  "namespace": "user",
   "description": "Animated plasma effect with customizable colors",
   "starter": true,
   "tags": ["noise", "animation", "color"],
@@ -346,7 +346,7 @@ A valid portable effect SHOULD have:
 {
   "name": "Flowing Terrain",
   "func": "flowingTerrain",
-  "namespace": "synth",
+  "namespace": "user",
   "description": "Procedural terrain with animated flow",
   "starter": true,
   "tags": ["noise", "terrain", "3d", "animation"],
@@ -398,7 +398,6 @@ uniform float height;
 uniform vec3 color1;
 uniform vec3 color2;
 
-in vec2 vUv;
 out vec4 fragColor;
 
 // Simplex noise function (abbreviated)
@@ -418,7 +417,7 @@ float fbm(vec2 p) {
 }
 
 void main() {
-    vec2 uv = vUv * scale;
+    vec2 uv = gl_FragCoord.xy / resolution * scale;
     float t = time * speed;
     
     float n = fbm(uv + vec2(t, 0.0));

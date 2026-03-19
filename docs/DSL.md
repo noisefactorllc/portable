@@ -6,21 +6,23 @@ The Polymorphic DSL (Domain-Specific Language) is used to compose effects into v
 
 ## Basic Structure
 
-Every DSL program has three parts:
+Every DSL program starts with a `search` directive, followed by effect chains:
 
 ```
 search {namespaces}
 {effect chains}
-render({outputs})
+render({output})
 ```
+
+The `search` directive is required. The `render()` directive is optional -- if omitted, no output is displayed.
 
 ### Example
 
 ```
 search user, synth, filter
 
-noise(scale: 4.0)
-  .blur(amount: 0.5)
+noise(xScale: 50, yScale: 50)
+  .blur(radiusX: 5, radiusY: 5)
   .write(o0)
 
 render(o0)
@@ -40,7 +42,9 @@ For portable effects, always include `user`:
 
 ```
 search user
+
 myEffect().write(o0)
+
 render(o0)
 ```
 
@@ -57,7 +61,6 @@ render(o0)
 | `synth3d` | 3D volumetric generators |
 | `filter3d` | 3D volumetric processors |
 | `classicNoisedeck` | Legacy Noisedeck effects |
-| `classicNoisemaker` | Python noisemaker ports |
 
 ---
 
@@ -66,7 +69,9 @@ render(o0)
 Effects are chained together with `.` (dot):
 
 ```
-noise().blur().colorspace().write(o0)
+search synth, filter
+
+noise().blur().adjust().write(o0)
 ```
 
 ### Starter Effects
@@ -74,6 +79,8 @@ noise().blur().colorspace().write(o0)
 Starter effects begin a chain (they generate imagery):
 
 ```
+search synth
+
 noise().write(o0)
 ```
 
@@ -82,16 +89,21 @@ noise().write(o0)
 Filter effects must follow another effect:
 
 ```
+search synth, filter
+
 noise().blur().write(o0)
 ```
 
 ### Mixer Effects
 
-Mixer effects combine two sources:
+Mixer effects combine the current chain with a second source via the `tex:` parameter:
 
 ```
+search synth, mixer, filter
+
 noise().write(o0)
-gradient().blendMode(tex: read(o0), mode: multiply).write(o1)
+gradient().blendMode(tex: read(o0)).write(o1)
+
 render(o1)
 ```
 
@@ -102,14 +114,14 @@ render(o1)
 Pass parameters to effects using `name: value` syntax:
 
 ```
-noise(scale: 4.0, octaves: 5, speed: 0.5)
+noise(xScale: 50, yScale: 50, octaves: 5, speed: 1)
 ```
 
 ### Parameter Types
 
 | Type | Syntax | Example |
 |------|--------|---------|
-| Number | `value` | `scale: 4.0` |
+| Number | `value` | `xScale: 50` |
 | Boolean | `true`/`false` | `invert: true` |
 | Enum | `name` | `mode: multiply` |
 | Color | `#rrggbb` | `color: #ff6600` |
@@ -118,9 +130,7 @@ noise(scale: 4.0, octaves: 5, speed: 0.5)
 ### Color Syntax
 
 ```
-solid(r: 1.0, g: 0.5, b: 0.0)        // RGB components
-colorize(color: #ff6600)             // Hex color
-tint(color: [1.0, 0.5, 0.0])         // Array format
+solid(color: #ff6600)              // Hex color
 ```
 
 ---
@@ -141,8 +151,11 @@ Available buffers: `o0` through `o7`
 Use `read()` to reference a buffer:
 
 ```
+search synth, filter
+
 noise().write(o0)
-blur(input: read(o0), amount: 0.8).write(o1)
+read(o0).blur(radiusX: 10, radiusY: 10).write(o1)
+
 render(o1)
 ```
 
@@ -150,11 +163,10 @@ render(o1)
 
 ## Render Directive
 
-The `render()` directive specifies which buffer(s) to display:
+The `render()` directive specifies which buffer to display:
 
 ```
-render(o0)           // Single output
-render(o0, o1)       // Multiple outputs (tiled)
+render(o0)
 ```
 
 ---
@@ -165,7 +177,9 @@ render(o0, o1)       // Multiple outputs (tiled)
 
 ```
 search user
+
 myEffect().write(o0)
+
 render(o0)
 ```
 
@@ -173,12 +187,14 @@ render(o0)
 
 ```
 search user
+
 flowingTerrain(
   speed: 0.8,
   scale: 5.0,
   color1: #1a472a,
   color2: #f0f0f5
 ).write(o0)
+
 render(o0)
 ```
 
@@ -188,7 +204,9 @@ If your effect is a filter:
 
 ```
 search user, synth
-noise().myFilter(amount: 0.5).write(o0)
+
+noise().myFilter(strength: 0.5).write(o0)
+
 render(o0)
 ```
 
@@ -196,10 +214,12 @@ render(o0)
 
 ```
 search user, synth, filter
+
 myEffect(scale: 3.0)
-  .blur(amount: 0.3)
-  .colorspace(saturation: 1.5)
+  .blur(radiusX: 3, radiusY: 3)
+  .adjust(saturation: 1.5)
   .write(o0)
+
 render(o0)
 ```
 
@@ -213,16 +233,16 @@ Chains can span multiple lines for readability:
 search user, synth, filter
 
 fractalNoise(
-  scale: 4.0,
+  xScale: 50,
   octaves: 6,
   lacunarity: 2.1,
   persistence: 0.5
 )
-  .colorize(
-    palette: rainbow,
-    offset: 0.3
+  .palette(
+    index: santaCruz,
+    offset: 30
   )
-  .blur(amount: 0.1)
+  .blur(radiusX: 2, radiusY: 2)
   .write(o0)
 
 render(o0)
@@ -237,23 +257,17 @@ Create complex compositions with multiple chains:
 ```
 search synth, filter, mixer
 
-// Background
-noise(scale: 2.0)
-  .colorize(palette: sunset)
+// Background pattern
+cell(scale: 50)
   .write(o0)
 
-// Foreground pattern
-voronoi(scale: 8.0)
+// Blend cells and noise with pattternMix
+noise(xScale: 50, yScale: 50)
+  .palette(index: brushedMetal)
+  .patternMix(tex: read(o0))
   .write(o1)
 
-// Combine them
-blendMode(
-  a: read(o0),
-  b: read(o1),
-  mode: overlay
-).write(o2)
-
-render(o2)
+render(o1)
 ```
 
 ---
@@ -266,7 +280,7 @@ Use `//` for comments:
 search synth
 
 // Main pattern
-noise(scale: 4.0).write(o0)
+noise(xScale: 50, yScale: 50).write(o0)
 
 // Final output
 render(o0)
@@ -280,7 +294,9 @@ render(o0)
 
 ```
 search user
+
 myStarter().write(o0)
+
 render(o0)
 ```
 
@@ -288,9 +304,11 @@ render(o0)
 
 ```
 search user, synth
+
 noise()
   .myFilter(param: 1.0)
   .write(o0)
+
 render(o0)
 ```
 
@@ -299,11 +317,13 @@ render(o0)
 ```
 search user, synth, mixer
 
-effect1().write(o0)
-effect2().write(o1)
+effect2().write(o0)
 
-blendMode(a: read(o0), b: read(o1), mode: add).write(o2)
-render(o2)
+effect1()
+  .alphaMask(tex: read(o0))
+  .write(o1)
+
+render(o1)
 ```
 
 ### Feedback Loop
@@ -311,9 +331,9 @@ render(o2)
 ```
 search synth, filter, render
 
-loopBegin(feedback: read(o0))
+loopBegin(alpha: 50)
   .noise(blend: 0.05)
-  .blur(amount: 0.01)
+  .blur(radiusX: 1, radiusY: 1)
   .loopEnd()
   .write(o0)
 
@@ -328,7 +348,7 @@ Common DSL errors and solutions:
 
 ### "Illegal chain structure"
 
-The effect can't start a chain. It needs input from another effect.
+A non-starter effect can't begin a chain. It needs input from another effect.
 
 ```
 // Wrong - myFilter is not a starter
@@ -352,18 +372,6 @@ search user, synth
 myEffect().write(o0)
 ```
 
-### "write() requires an input"
-
-Every chain must begin with a starter effect.
-
-```
-// Wrong
-.blur().write(o0)
-
-// Correct
-noise().blur().write(o0)
-```
-
 ---
 
 ## Best Practices
@@ -375,7 +383,7 @@ noise().blur().write(o0)
 
 2. **Use descriptive parameter names**
    ```
-   myEffect(speed: 0.5, complexity: 3)
+   myEffect(speed: 1, complexity: 3)
    ```
 
 3. **Break complex chains across lines**
