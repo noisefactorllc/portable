@@ -214,7 +214,11 @@ function validateDslBlock(dsl, label) {
         }
         if (effectName === 'noise') {
             check(!/\bscale\s*:/.test(params),
-                `noise() does not use deprecated "scale" param (use xScale/yScale) (${label})`)
+                `noise() does not use deprecated "scale" param (use scaleX/scaleY) (${label})`)
+            check(!/\bxScale\s*:/.test(params),
+                `noise() does not use deprecated "xScale" param (use scaleX) (${label})`)
+            check(!/\byScale\s*:/.test(params),
+                `noise() does not use deprecated "yScale" param (use scaleY) (${label})`)
         }
         if (effectName === 'chromaticAberration') {
             check(!/\baberrationAmt\s*:/.test(params),

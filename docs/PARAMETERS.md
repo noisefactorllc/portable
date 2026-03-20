@@ -286,7 +286,7 @@ void main() {
 Parameters can be grouped into categories in the UI using the `ui.category` property on each parameter:
 
 ```json
-"xScale": {
+"scaleX": {
   "type": "float",
   "default": 75,
   "min": 1,

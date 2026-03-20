@@ -21,7 +21,7 @@ The `search` directive is required. The `render()` directive is optional. If omi
 ```
 search user, synth, filter
 
-noise(xScale: 50, yScale: 50)
+noise(scaleX: 50, scaleY: 50)
   .blur(radiusX: 5, radiusY: 5)
   .write(o0)
 
@@ -114,14 +114,14 @@ render(o1)
 Pass parameters to effects using `name: value` syntax:
 
 ```
-noise(xScale: 50, yScale: 50, octaves: 5, speed: 1)
+noise(scaleX: 50, scaleY: 50, octaves: 5, speed: 1)
 ```
 
 ### Parameter Types
 
 | Type | Syntax | Example |
 |------|--------|---------|
-| Number | `value` | `xScale: 50` |
+| Number | `value` | `scaleX: 50` |
 | Boolean | `true`/`false` | `invert: true` |
 | Enum | `name` | `mode: multiply` |
 | Color | `#rrggbb` | `color: #ff6600` |
@@ -233,7 +233,7 @@ Chains can span multiple lines for readability:
 search user, synth, filter
 
 fractalNoise(
-  xScale: 50,
+  scaleX: 50,
   octaves: 6,
   lacunarity: 2.1,
   persistence: 0.5
@@ -262,7 +262,7 @@ cell(scale: 50)
   .write(o0)
 
 // Blend cells and noise with patternMix
-noise(xScale: 50, yScale: 50)
+noise(scaleX: 50, scaleY: 50)
   .palette(index: brushedMetal)
   .patternMix(tex: read(o0))
   .write(o1)
@@ -280,7 +280,7 @@ Use `//` for comments:
 search synth
 
 // Main pattern
-noise(xScale: 50, yScale: 50).write(o0)
+noise(scaleX: 50, scaleY: 50).write(o0)
 
 // Final output
 render(o0)
