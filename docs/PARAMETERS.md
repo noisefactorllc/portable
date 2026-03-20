@@ -43,10 +43,10 @@ The key (`parameterName`) is used in DSL programs. The `uniform` field specifies
 | `type` | string | **Yes** | Data type (see above) |
 | `default` | varies | **Yes** | Default value |
 | `uniform` | string | No | GLSL uniform name (defaults to key) |
-| `min` | number | No | Minimum slider value |
-| `max` | number | No | Maximum slider value |
-| `step` | number | No | Slider step increment |
-| `choices` | object | No | Enum choices for dropdown |
+| `min` | number | No | Minimum slider value (float/int only) |
+| `max` | number | No | Maximum slider value (float/int only, default 100) |
+| `step` | number | No | Slider step increment (float/int only) |
+| `choices` | object | No | Enum choices for dropdown (int only) |
 | `enum` | string | No | Reference to existing enum |
 
 ---
