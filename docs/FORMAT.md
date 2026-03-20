@@ -49,7 +49,7 @@ The definition file describes the effect's identity, parameters, and rendering s
   "namespace": "user",
   "description": "Animated plasma effect with customizable colors",
   "starter": true,
-  "tags": ["noise", "animation", "color"],
+  "tags": ["noise", "color"],
   "globals": {
     "scale": {
       "type": "float",
@@ -345,7 +345,7 @@ A valid portable effect SHOULD have:
   "namespace": "user",
   "description": "Procedural terrain with animated flow",
   "starter": true,
-  "tags": ["noise", "terrain", "3d", "animation"],
+  "tags": ["noise", "3d"],
   "globals": {
     "speed": {
       "type": "float",
