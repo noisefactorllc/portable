@@ -64,7 +64,7 @@ The definition file describes the effect's identity, parameters, and rendering s
       "max": 5.0
     },
     "color": {
-      "type": "vec3",
+      "type": "color",
       "default": [1.0, 0.5, 0.0],
       "uniform": "baseColor"
     }
@@ -76,8 +76,7 @@ The definition file describes the effect's identity, parameters, and rendering s
       "inputs": {},
       "outputs": { "fragColor": "outputTex" }
     }
-  ],
-  "textures": {}
+  ]
 }
 ```
 
@@ -110,12 +109,14 @@ At least one of `name` or `func` must be provided. If `func` is omitted, the `na
 
 ## The `starter` Field
 
-The `starter` field determines whether an effect can begin a DSL chain:
+Portable effects currently support two types: **starters** and **filters**.
 
-- **`starter: true`** - Effect generates imagery from scratch (no input required)
-- **`starter: false`** - Effect requires input from a previous effect in the chain
+The `starter` field determines which type:
 
-### Starter Effects (synth-type)
+- **`starter: true`** - Effect generates imagery from scratch (no input required). These are called "synths" in Noisedeck.
+- **`starter: false`** - Effect requires input from a previous effect in the chain.
+
+### Starter Effects
 
 ```json
 {
@@ -169,17 +170,24 @@ Tags help categorize effects for searchability:
 
 | Tag | Description |
 |-----|-------------|
+| `3d` | 3D volumetric effects |
+| `antialiasing` | Edge smoothing |
+| `audio` | Audio-reactive effects |
+| `blur` | Blurs |
 | `color` | Color manipulation |
 | `distort` | Input distortion |
-| `edges` | Accentuate or isolate texture edges |
+| `edges` | Accentuate or isolate edges |
+| `fractal` | Fractals |
 | `geometric` | Shapes |
-| `lens` | Emulated camera lens effects |
-| `noise` | Noise-based patterns |
-| `transform` | Moves stuff around |
-| `util` | Utility function |
+| `lens` | Camera lens effects |
+| `pattern` | Repeating patterns |
+| `pixel` | Pixelated effects |
+| `midi` | MIDI-reactive effects |
+| `noise` | Noise-based effects |
 | `sim` | Simulations with temporal state |
-| `3d` | 3D volumetric effects |
-| `audio` | Audio-reactive effects |
+| `text` | Text effects |
+| `transform` | Moves/rotates |
+| `util` | Utility functions |
 
 These tags are recognized by the built-in search. You can use any tags, but only these will appear as filter options.
 
@@ -285,17 +293,18 @@ An effect must provide at least one shader directory. If both are provided, each
 
 ## Registration
 
-When an effect is loaded, it's registered under multiple keys for flexible lookup:
+When a portable effect is loaded, it's registered in the `user` namespace under these keys:
 
-1. `{namespace}.{func}` - Full namespaced name (e.g., `user.plasmaWave`)
-2. `{namespace}/{func}` - Slash-separated ID (e.g., `user/plasmaWave`)
-3. `{func}` - Plain function name (e.g., `plasmaWave`)
+1. `user.{func}` - Dot-separated name (e.g., `user.plasmaWave`)
+2. `user/{func}` - Slash-separated ID (e.g., `user/plasmaWave`)
 
 The DSL's `search` directive controls which namespaces are searched:
 
 ```
 search user, synth, filter
+
 plasmaWave().blur().write(o0)
+
 render(o0)
 ```
 
@@ -350,17 +359,27 @@ A valid portable effect SHOULD have:
       "max": 1.0
     },
     "color1": {
-      "type": "vec3",
+      "type": "color",
       "default": [0.1, 0.4, 0.2]
     },
     "color2": {
-      "type": "vec3",
+      "type": "color",
       "default": [0.9, 0.9, 0.95]
     }
   },
-  "defaultProgram": "search user\nflowingTerrain(speed: 0.8, scale: 5.0, height: 0.5).write(o0)\nrender(o0)"
+  "defaultProgram": "search user\nflowingTerrain(speed: 0.8, scale: 5.0, height: 0.5).write(o0)\nrender(o0)",
+  "passes": [
+    {
+      "name": "render",
+      "program": "main",
+      "inputs": {},
+      "outputs": { "fragColor": "outputTex" }
+    }
+  ]
 }
 ```
+
+The `defaultProgram` field contains an example DSL program that demonstrates the effect with good parameter values. Applications use this as the initial program when the effect is loaded.
 
 ### glsl/main.glsl
 
@@ -409,5 +428,3 @@ void main() {
     fragColor = vec4(color, 1.0);
 }
 ```
-
-The `defaultProgram` field contains an example DSL program that demonstrates the effect with good parameter values. Applications use this as the initial program when the effect is loaded.

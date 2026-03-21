@@ -18,8 +18,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const VALID_PARAM_TYPES = ['float', 'int', 'boolean', 'vec2', 'vec3', 'vec4', 'color']
 
 const VALID_TAGS = [
-    'color', 'distort', 'edges', 'geometric', 'lens',
-    'noise', 'transform', 'util', 'sim', '3d', 'audio'
+    '3d', 'antialiasing', 'audio', 'blur', 'color', 'distort',
+    'edges', 'fractal', 'geometric', 'lens', 'midi', 'noise',
+    'pattern', 'pixel', 'sim', 'text', 'transform', 'util'
 ]
 
 const VALID_NAMESPACES = [

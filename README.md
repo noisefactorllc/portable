@@ -260,18 +260,22 @@ render(o0)
 
 ## Effect Types
 
+Portable effects are registered in the `user` namespace and support two types:
+
+| Type | `starter` | Description |
+|------|-----------|-------------|
+| **Starter** | `true` | Generates 2D imagery from scratch (called "synth" in Noisedeck) |
+| **Filter** | `false` | Transforms a 2D input texture |
+
+The following built-in effect types are not yet supported as portable effects:
+
 | Type | Namespace | Description |
 |------|-----------|-------------|
-| **User** | `user` | User-created portable effects |
-| **Starter** | `synth` | Generates 2D imagery from scratch |
-| **Filter** | `filter` | Transforms a 2D input texture |
-| **Mixer** | `mixer` | Blends two input textures |
-| **3D Starter** | `synth3d` | Generates 3D volumetric data |
-| **3D Filter** | `filter3d` | Transforms 3D volumetric data |
-| **Points** | `points` | Agent/particle simulations |
-| **Render** | `render` | Rendering utilities (loops, 3D) |
-
-The `starter` field in definition.json determines whether an effect can begin a DSL chain or must receive input from another effect.
+| Mixer | `mixer` | Blends two input textures |
+| 3D Starter | `synth3d` | Generates 3D volumetric data |
+| 3D Filter | `filter3d` | Transforms 3D volumetric data |
+| Points | `points` | Agent/particle simulations |
+| Render | `render` | Rendering utilities (loops, 3D) |
 
 ---
 
