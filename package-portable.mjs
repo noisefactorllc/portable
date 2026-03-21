@@ -26,7 +26,7 @@ async function getFileSize(filePath) {
 }
 
 async function main() {
-    console.log('📦 Packaging effect...');
+    console.log('Packaging effect...');
     
     const outputPath = join(__dirname, OUTPUT_FILE);
     const effectPath = join(__dirname, EFFECT_DIR);
@@ -52,12 +52,12 @@ async function main() {
     // Show result
     const fileSize = await getFileSize(outputPath);
     console.log('');
-    console.log(`✅ Effect packaged: ${OUTPUT_FILE} (${fileSize})`);
+    console.log(`Effect packaged: ${OUTPUT_FILE} (${fileSize})`);
     console.log('');
-    console.log(`To import: Open NoiseDeck → File Menu → Import Effect from ZIP → Select ${OUTPUT_FILE}`);
+    console.log(`To import: Open Noisedeck → file → import effect from zip → Select ${OUTPUT_FILE}`);
 }
 
 main().catch(err => {
-    console.error('❌ Error:', err.message);
+    console.error('Error:', err.message);
     process.exit(1);
 });

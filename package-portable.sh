@@ -11,7 +11,7 @@ cd "$SCRIPT_DIR"
 OUTPUT_FILE="effect.zip"
 TEMP_DIR="effect"
 
-echo "📦 Packaging effect..."
+echo "Packaging effect..."
 
 # Clean up any existing output
 rm -f "$OUTPUT_FILE"
@@ -25,9 +25,9 @@ cd ..
 # Show result
 FILE_SIZE=$(du -h "$OUTPUT_FILE" | cut -f1)
 echo ""
-echo "✅ Effect packaged: $OUTPUT_FILE ($FILE_SIZE)"
+echo "Effect packaged: $OUTPUT_FILE ($FILE_SIZE)"
 echo ""
 echo "Contents:"
 unzip -l "$OUTPUT_FILE"
 echo ""
-echo "To import: Open NoiseDeck → File Menu → Import Effect from ZIP → Select $OUTPUT_FILE"
+echo "To import: Open Noisedeck → file → import effect from zip → Select $OUTPUT_FILE"
