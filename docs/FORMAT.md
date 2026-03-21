@@ -12,13 +12,13 @@ A portable effect is a directory or ZIP archive containing:
 
 ```
 effect-name/
-├── definition.json          # REQUIRED: Effect metadata
+├── definition.json           # REQUIRED: Effect metadata
 ├── glsl/                     # At least one of glsl/ or wgsl/ REQUIRED
-│   ├── main.glsl            # Primary fragment shader
-│   └── *.glsl               # Additional shaders (multi-pass)
+│   ├── main.glsl             # Primary fragment shader
+│   └── *.glsl                # Additional shaders (multi-pass)
 ├── wgsl/                     # At least one of glsl/ or wgsl/ REQUIRED
-│   ├── main.wgsl            # Primary fragment shader
-│   └── *.wgsl               # Additional shaders (multi-pass)
+│   ├── main.wgsl             # Primary fragment shader
+│   └── *.wgsl                # Additional shaders (multi-pass)
 └── help.md                   # OPTIONAL: Documentation
 ```
 
@@ -45,7 +45,6 @@ The definition file describes the effect's identity, parameters, and rendering s
 {
   "name": "Plasma Wave",
   "func": "plasmaWave",
-  "namespace": "user",
   "description": "Animated plasma effect with customizable colors",
   "starter": true,
   "tags": ["noise", "color"],
@@ -99,7 +98,6 @@ At least one of `name` or `func` must be provided. If `func` is omitted, the `na
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `namespace` | string | `"user"` | Effect namespace (see below) |
 | `description` | string | `""` | Human-readable description |
 | `starter` | boolean | `false` | Whether effect can start a chain |
 | `tags` | string[] | `[]` | Categorization tags |
@@ -107,23 +105,6 @@ At least one of `name` or `func` must be provided. If `func` is omitted, the `na
 | `passes` | array | auto | Rendering pass configuration |
 | `textures` | object | `{}` | Internal texture definitions |
 | `defaultProgram` | string | | Example DSL program for this effect |
-
----
-
-## Namespaces
-
-| Namespace | Purpose | Starter? |
-|-----------|---------|----------|
-| `user` | User-created effects | varies |
-| `synth` | 2D generators | Yes |
-| `filter` | 2D processors | No |
-| `mixer` | Blend/composite operations | No |
-| `synth3d` | 3D volumetric generators | Yes |
-| `filter3d` | 3D volumetric processors | No |
-| `points` | Agent/particle simulations | Yes |
-| `render` | Rendering utilities (loops, 3D) | No |
-
-For portable effects, `user` is the recommended namespace. The effect will be registered as `user.{func}` and accessible as `user/{func}`.
 
 ---
 
@@ -320,17 +301,17 @@ render(o0)
 
 A valid portable effect MUST have:
 
-1. ✅ A `definition.json` with at least `name` or `func`
-2. ✅ At least one shader file in `glsl/` or `wgsl/` (or both)
-3. ✅ Program names in `passes` must match shader filenames in each provided directory
+1. A `definition.json` with at least `name` or `func`
+2. At least one shader file in `glsl/` or `wgsl/` (or both)
+3. Program names in `passes` must match shader filenames in each provided directory
 
 A valid portable effect SHOULD have:
 
-- 📝 Both `glsl/` and `wgsl/` shaders for full cross-backend interoperability
-- 📝 A meaningful `description`
-- 📝 Appropriate `tags` for searchability
-- 📝 Correct `starter` field matching the effect type
-- 📝 Parameter `min`/`max` ranges for UI sliders
+- Both `glsl/` and `wgsl/` shaders for full cross-backend interoperability
+- A meaningful `description`
+- Appropriate `tags` for searchability
+- Correct `starter` field matching the effect type
+- Parameter `min`/`max` ranges for UI sliders
 
 ---
 
@@ -342,7 +323,6 @@ A valid portable effect SHOULD have:
 {
   "name": "Flowing Terrain",
   "func": "flowingTerrain",
-  "namespace": "user",
   "description": "Procedural terrain with animated flow",
   "starter": true,
   "tags": ["noise", "3d"],

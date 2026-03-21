@@ -102,7 +102,6 @@ The included `effect/` directory contains a complete portable effect: a diagonal
 ```json
 {
     "name": "Gradient Sweep",
-    "namespace": "user",
     "func": "gradientSweep",
     "description": "A diagonal color gradient that rotates over time",
     "tags": ["color"],
@@ -194,7 +193,6 @@ my-effect/
 {
   "name": "My Effect",
   "func": "myEffect",
-  "namespace": "user",
   "description": "A simple shader effect",
   "starter": true,
   "tags": ["noise"],

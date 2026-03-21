@@ -29,10 +29,9 @@ The key (`parameterName`) is used in DSL programs. The `uniform` field specifies
 | `float` | `float` | `1.0` | Slider |
 | `int` | `int` | `4` | Slider (integer steps) |
 | `boolean` | `bool` | `true` | Toggle |
-| `vec2` | `vec2` | `[0.5, 0.5]` | XY pad or dual sliders |
-| `vec3` | `vec3` | `[1.0, 0.0, 0.5]` | Color picker or RGB sliders |
-| `vec4` | `vec4` | `[1.0, 0.0, 0.5, 1.0]` | Color picker with alpha |
-| `color` | `vec4` | `[1.0, 0.0, 0.5, 1.0]` | Color picker (alias for vec4) |
+| `vec2` | `vec2` | `[0.5, 0.5]` | Dual sliders |
+| `vec3` | `vec3` | `[1.0, 0.0, 0.5]` | Triple slider |
+| `color` | `vec3` | `[1.0, 0.0, 0.5]` | Color picker (hex in DSL) |
 
 ---
 
@@ -121,9 +120,7 @@ myEffect(invert: true)
 ```json
 "offset": {
   "type": "vec2",
-  "default": [0.5, 0.5],
-  "min": 0.0,
-  "max": 1.0
+  "default": [0.5, 0.5]
 }
 ```
 
@@ -161,20 +158,6 @@ uniform vec3 tint;
 ```
 
 **Note:** in the DSL, params of color type use hexadecimal formatting: `colorize(tint: #ff00ff)`. Format conversion is done automatically
-
-### vec4
-
-```json
-"viewport": {
-  "type": "vec4",
-  "default": [0.0, 0.0, 1.0, 1.0]
-}
-```
-
-GLSL:
-```glsl
-uniform vec4 viewport;
-```
 
 ---
 
@@ -378,7 +361,6 @@ Use `ui.category` to organize complex effects:
 {
   "name": "Fractal Noise",
   "func": "fractalNoise",
-  "namespace": "user",
   "starter": true,
   "globals": {
     "scale": {

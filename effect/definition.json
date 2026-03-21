@@ -1,6 +1,5 @@
 {
     "name": "Gradient Sweep",
-    "namespace": "user",
     "func": "gradientSweep",
     "description": "A diagonal color gradient that rotates over time",
     "tags": ["color"],
