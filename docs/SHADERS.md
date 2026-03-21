@@ -92,7 +92,7 @@ In WGSL, each uniform gets an explicit `@group(0) @binding(N)` annotation. Bindi
 
 ## Using Time
 
-`time` cycles from 0.0 to 1.0 over the loop duration (default 8 seconds).
+`time` cycles from 0.0 to 1.0 over the loop duration (default 10 seconds).
 
 ### GLSL
 
@@ -175,7 +175,7 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
 }
 ```
 
-The Y-flip (`resolution.y - position.y`) ensures visual parity between GLSL and WGSL versions of the same effect. If you don't need to match a GLSL version, the flip is optional.
+The Y-flip (`resolution.y - position.y`) ensures visual parity between GLSL and WGSL versions of the same starter effect. For filter effects that sample an input texture, do NOT flip — use `position.xy / resolution` directly, since input textures are already in screen space.
 
 ---
 
@@ -260,7 +260,7 @@ WGSL requires separate sampler and texture bindings:
 
 @fragment
 fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
-    let uv = vec2<f32>(position.x, resolution.y - position.y) / resolution;
+    let uv = position.xy / resolution;
     var color = textureSample(inputTex, inputSampler, uv);
     let gray = dot(color.rgb, vec3<f32>(0.299, 0.587, 0.114));
     color = vec4<f32>(mix(color.rgb, vec3<f32>(gray), amount), color.a);
@@ -407,6 +407,8 @@ fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
 #### GLSL
 
 ```glsl
+uniform float time;
+uniform vec2 resolution;
 uniform float speed;
 uniform vec2 direction;
 
@@ -453,7 +455,7 @@ Configure passes in `definition.json` (language-agnostic - the runtime selects t
   {
     "name": "horizontal",
     "program": "pass1",
-    "inputs": { "inputTex": "source" },
+    "inputs": { "inputTex": "inputTex" },
     "outputs": { "fragColor": "tempTex" }
   },
   {

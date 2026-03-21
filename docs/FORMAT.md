@@ -148,7 +148,7 @@ myEffect().blur().write(o0)
     {
       "name": "render",
       "program": "main",
-      "inputs": { "inputTex": "source" },
+      "inputs": { "inputTex": "inputTex" },
       "outputs": { "fragColor": "outputTex" }
     }
   ]
@@ -214,7 +214,7 @@ It is recommended to always provide explicit passes, especially for filter effec
 "passes": [{
   "name": "render",
   "program": "main",
-  "inputs": { "inputTex": "source" },
+  "inputs": { "inputTex": "inputTex" },
   "outputs": { "fragColor": "outputTex" }
 }]
 ```
@@ -226,7 +226,7 @@ It is recommended to always provide explicit passes, especially for filter effec
   {
     "name": "blur_h",
     "program": "blur",
-    "inputs": { "inputTex": "source" },
+    "inputs": { "inputTex": "inputTex" },
     "outputs": { "fragColor": "tempTex" }
   },
   {
@@ -251,9 +251,8 @@ It is recommended to always provide explicit passes, especially for filter effec
 
 | Name | Description |
 |------|-------------|
-| `source` | Pipeline input texture |
-| `outputTex` | Pipeline output texture |
-| `inputTex` | Common sampler name for input |
+| `inputTex` | Pipeline input texture (from previous effect in chain) |
+| `outputTex` | Pipeline output texture (to next effect in chain) |
 
 ---
 
