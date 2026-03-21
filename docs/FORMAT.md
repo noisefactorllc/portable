@@ -19,8 +19,7 @@ effect-name/
 ├── wgsl/                     # At least one of glsl/ or wgsl/ REQUIRED
 │   ├── main.wgsl            # Primary fragment shader
 │   └── *.wgsl               # Additional shaders (multi-pass)
-├── help.md                   # OPTIONAL: Documentation
-└── dsl.txt                   # OPTIONAL: Example DSL program
+└── help.md                   # OPTIONAL: Documentation
 ```
 
 > **Recommendation:** Provide both GLSL and WGSL shaders for full interoperability across all Noise Factor applications. Effects with only one shader language will only work on the corresponding backend (WebGL or WebGPU).
@@ -107,6 +106,7 @@ At least one of `name` or `func` must be provided. If `func` is omitted, the `na
 | `globals` | object | `{}` | Parameter definitions |
 | `passes` | array | auto | Rendering pass configuration |
 | `textures` | object | `{}` | Internal texture definitions |
+| `defaultProgram` | string | | Example DSL program for this effect |
 
 ---
 
@@ -373,7 +373,8 @@ A valid portable effect SHOULD have:
       "type": "vec3",
       "default": [0.9, 0.9, 0.95]
     }
-  }
+  },
+  "defaultProgram": "search user\nflowingTerrain(speed: 0.8, scale: 5.0, height: 0.5).write(o0)\nrender(o0)"
 }
 ```
 
@@ -425,10 +426,4 @@ void main() {
 }
 ```
 
-### DSL Usage
-
-```
-search user
-flowingTerrain(speed: 0.8, scale: 5.0, height: 0.5).write(o0)
-render(o0)
-```
+The `defaultProgram` field contains an example DSL program that demonstrates the effect with good parameter values. Applications use this as the initial program when the effect is loaded.

@@ -26,7 +26,6 @@ You can create new effects using this repository, but there's also a web-based I
 portable/
 ├── effect/                     # Working example effect
 │   ├── definition.json         # Effect definition
-│   ├── dsl.txt                 # Example DSL program
 │   ├── help.md                 # Effect documentation
 │   ├── glsl/
 │   │   └── gradientSweep.glsl  # WebGL shader
@@ -57,10 +56,11 @@ Modify files in the `effect/` directory:
 - `definition.json` - Effect definition and parameters
 - `glsl/*.glsl` - WebGL shader code
 - `wgsl/*.wgsl` - WebGPU shader code
+- `help.md` - Effect documentation
 
 ### 3. Test in Viewer
 
-The viewer needs a local HTTP server (it can't run from a `file://` URL). From the project root:
+The viewer needs a local HTTP server. From the project root:
 
 ```bash
 npm install
@@ -118,6 +118,8 @@ The included `effect/` directory contains a complete portable effect: a diagonal
         }
     },
 
+    "defaultProgram": "search user\n\ngradientSweep(speed: 1.0)\n  .write(o0)\n\nrender(o0)",
+
     "passes": [
         {
             "name": "main",
@@ -174,11 +176,12 @@ my-effect/
     └── main.glsl       # Fragment shader source
 ```
 
-For full interoperability, provide both GLSL and WGSL shaders:
+For full interoperability, provide both GLSL and WGSL shaders and a help.md documentation file:
 
 ```
 my-effect/
-├── definition.json
+├── definition.json     # Effect metadata and parameters
+├── help.md             # Effect documentation
 ├── glsl/
 │   └── main.glsl       # WebGL shader
 └── wgsl/

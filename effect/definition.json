@@ -17,6 +17,8 @@
         }
     },
 
+    "defaultProgram": "search user\n\ngradientSweep(speed: 1.0)\n  .write(o0)\n\nrender(o0)",
+
     "passes": [
         {
             "name": "main",

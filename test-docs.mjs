@@ -36,6 +36,7 @@ const DEPRECATED_PATTERNS = [
     { pattern: /uniform\s+vec4\s+mouse/g, message: 'declares mouse uniform (not implemented)' },
     { pattern: /uniformLayout/g, message: 'references uniformLayout (use ui.category per parameter)' },
     { pattern: / -- /g, message: 'contains double-dash separator' },
+    { pattern: /dsl\.txt/g, message: 'references dsl.txt (use defaultProgram in definition.json instead)' },
 ]
 
 // =========================================================================
