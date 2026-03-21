@@ -16,7 +16,7 @@ Portable Effects are self-contained shader packages that work across all Noise F
 
 ## Creating New Effects
 
-The easiest way to create effects is with [Foundry](https://foundry.noisedeck.app/), a web-based shader editor with live preview. You can also work directly with the files in this repository. Effects you create can be imported into Noisedeck or any other Noise Factor application.
+The easiest way to create effects is with [Foundry](https://foundry.noisedeck.app/), a web-based shader editor with live preview. You can also work directly with the files in this repository. Effects you create can be imported into Noisedeck or other Noise Factor applications.
 
 ---
 
