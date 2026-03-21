@@ -232,11 +232,11 @@ Chains can span multiple lines for readability:
 ```
 search user, synth, filter
 
-fractalNoise(
+noise(
   scaleX: 50,
+  scaleY: 50,
   octaves: 6,
-  lacunarity: 2.1,
-  persistence: 0.5
+  ridges: true
 )
   .palette(
     index: santaCruz,
@@ -333,7 +333,7 @@ search synth, filter, render
 
 noise()
 .loopBegin(alpha: 100)
-  .blur(radiusX: 10, radiusY: 1)
+  .blur(radiusX: 10, radiusY: 10)
   .loopEnd()
   .write(o0)
 

@@ -4,7 +4,7 @@
 
 **The Portable Effects Format** is an open standard for sharing shader effects across the Noise Factor ecosystem.
 
-This repository serves as the **canonical source of truth** for the Portable Effects specification. 
+This repository serves as the **canonical source of truth** for the Portable Effects specification.
 
 ---
 
@@ -46,7 +46,7 @@ portable/
 ### 1. Clone This Repository
 
 ```bash
-git clone https://github.com/noisedeck/portable.git
+git clone https://github.com/noisefactorllc/portable.git
 cd portable
 ```
 
@@ -238,7 +238,7 @@ void main() {
 
 ### Using Your Effect
 
-Once loaded into any Noisemaker application, use it in DSL programs:
+Once loaded into Noisedeck or another application, use it in DSL programs:
 
 ```
 search user
