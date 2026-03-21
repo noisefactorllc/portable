@@ -1,13 +1,13 @@
 # Effect Viewer
 
-The portable effects viewer is a development environment for testing effects locally.
+The effect viewer is a development environment for testing portable effects locally.
 
 ---
 
 ## Features
 
 - **Full-page canvas** - Effect renders at full viewport resolution
-- **Parameter controls** - Sliders for all effect globals
+- **Parameter controls** - Sliders for numeric effect globals (float, int)
 - **Manual reload** - Click the Reload Effect button or refresh the page after changes
 - **Resize handling** - Canvas adapts to window size changes
 - **Backend auto-detection** - Automatically selects WebGL or WebGPU based on available shader files
