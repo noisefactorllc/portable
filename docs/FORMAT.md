@@ -74,7 +74,7 @@ The definition file describes the effect's identity, parameters, and rendering s
       "name": "render",
       "program": "main",
       "inputs": {},
-      "outputs": { "fragColor": "outputTex" }
+      "outputs": { "color": "outputTex" }
     }
   ]
 }
@@ -126,7 +126,7 @@ The `starter` field determines which type:
       "name": "render",
       "program": "main",
       "inputs": {},
-      "outputs": { "fragColor": "outputTex" }
+      "outputs": { "color": "outputTex" }
     }
   ]
 }
@@ -149,7 +149,7 @@ myEffect().blur().write(o0)
       "name": "render",
       "program": "main",
       "inputs": { "inputTex": "inputTex" },
-      "outputs": { "fragColor": "outputTex" }
+      "outputs": { "color": "outputTex" }
     }
   ]
 }
@@ -205,7 +205,7 @@ It is recommended to always provide explicit passes, especially for filter effec
   "name": "render",
   "program": "main",
   "inputs": {},
-  "outputs": { "fragColor": "outputTex" }
+  "outputs": { "color": "outputTex" }
 }]
 ```
 
@@ -215,7 +215,7 @@ It is recommended to always provide explicit passes, especially for filter effec
   "name": "render",
   "program": "main",
   "inputs": { "inputTex": "inputTex" },
-  "outputs": { "fragColor": "outputTex" }
+  "outputs": { "color": "outputTex" }
 }]
 ```
 
@@ -227,13 +227,13 @@ It is recommended to always provide explicit passes, especially for filter effec
     "name": "blur_h",
     "program": "blur",
     "inputs": { "inputTex": "inputTex" },
-    "outputs": { "fragColor": "tempTex" }
+    "outputs": { "color": "tempTex" }
   },
   {
     "name": "blur_v",
     "program": "blur",
     "inputs": { "inputTex": "tempTex" },
-    "outputs": { "fragColor": "outputTex" }
+    "outputs": { "color": "outputTex" }
   }
 ]
 ```
@@ -372,7 +372,7 @@ A valid portable effect SHOULD have:
       "name": "render",
       "program": "main",
       "inputs": {},
-      "outputs": { "fragColor": "outputTex" }
+      "outputs": { "color": "outputTex" }
     }
   ]
 }

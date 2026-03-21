@@ -209,7 +209,7 @@ my-effect/
       "name": "render",
       "program": "main",
       "inputs": {},
-      "outputs": { "fragColor": "outputTex" }
+      "outputs": { "color": "outputTex" }
     }
   ]
 }

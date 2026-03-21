@@ -442,7 +442,7 @@ Use `ui.category` to organize complex effects:
       "name": "render",
       "program": "main",
       "inputs": {},
-      "outputs": { "fragColor": "outputTex" }
+      "outputs": { "color": "outputTex" }
     }
   ]
 }

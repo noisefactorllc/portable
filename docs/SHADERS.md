@@ -456,13 +456,13 @@ Configure passes in `definition.json` (language-agnostic - the runtime selects t
     "name": "horizontal",
     "program": "pass1",
     "inputs": { "inputTex": "inputTex" },
-    "outputs": { "fragColor": "tempTex" }
+    "outputs": { "color": "tempTex" }
   },
   {
     "name": "vertical",
     "program": "pass2",
     "inputs": { "inputTex": "tempTex" },
-    "outputs": { "fragColor": "outputTex" }
+    "outputs": { "color": "outputTex" }
   }
 ],
 "textures": {
