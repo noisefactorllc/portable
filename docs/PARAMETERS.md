@@ -46,7 +46,6 @@ The key (`parameterName`) is used in DSL programs. The `uniform` field specifies
 | `max` | number | No | Maximum slider value (float/int only, default 100) |
 | `step` | number | No | Slider step increment (float/int only) |
 | `choices` | object | No | Enum choices for dropdown (int only) |
-| `enum` | string | No | Reference to existing enum |
 
 ---
 
@@ -90,6 +89,11 @@ GLSL:
 uniform int octaves;
 ```
 
+DSL:
+```
+myEffect(octaves: 6)
+```
+
 ---
 
 ## Boolean Parameters
@@ -129,6 +133,11 @@ GLSL:
 uniform vec2 offset;
 ```
 
+DSL:
+```
+myEffect(offset: vec2(0.5, 0.25))
+```
+
 ### vec3
 
 ```json
@@ -141,6 +150,11 @@ uniform vec2 offset;
 GLSL:
 ```glsl
 uniform vec3 lightDirection;
+```
+
+DSL:
+```
+myEffect(lightDirection: vec3(1.0, 0.5, 0.0))
 ```
 
 ### vec3 (Color)
@@ -157,7 +171,10 @@ GLSL:
 uniform vec3 tint;
 ```
 
-**Note:** in the DSL, params of color type use hexadecimal formatting: `colorize(tint: #ff00ff)`. Format conversion is done automatically
+DSL (color params use hex formatting):
+```
+tint(color: #ff8040)
+```
 
 ---
 
@@ -219,7 +236,7 @@ The `uniform` property allows different names in DSL vs GLSL:
 - DSL uses: `myEffect(speed: 2.0)`
 - GLSL uses: `uniform float u_speed;`
 
-If `uniform` is omitted, the parameter key is used as the uniform name.
+If `uniform` is omitted, the parameter key is used as the uniform name (`speed`, in this example).
 
 ---
 
@@ -264,9 +281,12 @@ void main() {
 
 ---
 
-## UI Grouping
+## UI Properties
 
-Parameters can be grouped into categories in the UI using the `ui.category` property on each parameter:
+The `ui` object controls how a parameter appears in the application UI:
+
+- `ui.label` - Display label for the control (defaults to the parameter key)
+- `ui.category` - Group name for organizing related parameters
 
 ```json
 "scaleX": {
@@ -291,13 +311,13 @@ Parameters can be grouped into categories in the UI using the `ui.category` prop
 }
 ```
 
-Parameters with the same `category` value are grouped together. Parameters without a category appear ungrouped.
+Parameters with the same `category` value are grouped together. Parameters without a category appear ungrouped or in a `general` category.
 
 ---
 
 ## Best Practices
 
-### 1. Always Specify Ranges
+### 1. Always Specify Ranges For Int and Float Params
 
 ```json
 "scale": {
@@ -308,7 +328,7 @@ Parameters with the same `category` value are grouped together. Parameters witho
 }
 ```
 
-Without `min`/`max`, sliders default to 0-100 which may not be appropriate for your parameter.
+Without `min`/`max`, slider controls default to 0-100 which may not be appropriate for your parameter.
 
 ### 2. Use Sensible Defaults
 
@@ -331,7 +351,7 @@ uniform float scale;  // Matches the parameter key
 
 ### 4. Document Parameters
 
-Use the `description` field:
+Use the optional `description` field:
 
 ```json
 "lacunarity": {
@@ -407,15 +427,16 @@ Use `ui.category` to organize complex effects:
       "type": "color",
       "default": [0.0, 0.0, 0.2],
       "description": "Dark color",
-      "ui": { "category": "color" }
+      "ui": { "category": "color", "label": "dark color" }
     },
     "color2": {
       "type": "color",
       "default": [1.0, 0.8, 0.4],
       "description": "Light color",
-      "ui": { "category": "color" }
+      "ui": { "category": "color", "label": "light color" }
     }
   },
+  "defaultProgram": "search user\nfractalNoise(scale: 5.0, octaves: 6).write(o0)\nrender(o0)",
   "passes": [
     {
       "name": "render",
