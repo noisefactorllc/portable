@@ -266,7 +266,7 @@
 
         // Build and render param controls
         function renderParamControls(def) {
-            effectNameEl.textContent = `${def.namespace}.${def.func}`;
+            effectNameEl.textContent = `${def.namespace || 'user'}.${def.func}`;
             effectDescEl.textContent = def.description || '';
             
             paramsEl.innerHTML = '';
@@ -354,7 +354,7 @@
                 effectDef = await loadEffectDefinition();
                 detectBackends(effectDef);
 
-                const namespace = effectDef.namespace;
+                const namespace = effectDef.namespace || 'user';
                 const name = effectDef.func;
                 const opName = `${namespace}.${name}`;
                 
@@ -395,7 +395,7 @@
                 renderParamControls(effectDef);
                 
                 // Build DSL with required search directive
-                const dsl = `search ${effectDef.namespace}\n${effectDef.func}().write(o0)\nrender(o0)`;
+                const dsl = `search ${effectDef.namespace || 'user'}\n${effectDef.func}().write(o0)\nrender(o0)`;
                 
                 // Compile - throws on error
                 await renderer.compile(dsl);
@@ -405,7 +405,7 @@
                     renderer.setUniform(name, value);
                 }
                 
-                setStatus(`Loaded: ${effectDef.namespace}.${effectDef.func} (${currentBackend === 'wgsl' ? 'WebGPU' : 'WebGL'})`, 'success');
+                setStatus(`Loaded: ${effectDef.namespace || 'user'}.${effectDef.func} (${currentBackend === 'wgsl' ? 'WebGPU' : 'WebGL'})`, 'success');
             } catch (err) {
                 let errorMsg = 'Unknown error';
                 if (err && typeof err === 'object') {

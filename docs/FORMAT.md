@@ -133,6 +133,8 @@ The `starter` field determines whether an effect can begin a DSL chain:
 
 DSL usage:
 ```
+search user, filter
+
 myEffect().blur().write(o0)
 ```
 
@@ -154,6 +156,8 @@ myEffect().blur().write(o0)
 
 DSL usage:
 ```
+search synth, user
+
 noise().myFilter().write(o0)
 ```
 
