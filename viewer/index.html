@@ -186,7 +186,7 @@
     <div id="status">Initializing...</div>
 
     <script type="module">
-        import { CanvasRenderer, registerEffect as registerEffectGlobal, registerOp, registerStarterOps } from 'https://shaders.noisedeck.app/0.9.0/noisemaker-shaders-core.esm.js';
+        import { CanvasRenderer, registerEffect as registerEffectGlobal, registerOp, registerStarterOps } from 'https://shaders.noisedeck.app/0/noisemaker-shaders-core.esm.js';
 
         // State
         let renderer = null;
@@ -466,7 +466,7 @@
 
             renderer = new CanvasRenderer({
                 canvas,
-                basePath: 'https://shaders.noisedeck.app/0.9.0',
+                basePath: 'https://shaders.noisedeck.app/0',
                 preferWebGPU: currentBackend === 'wgsl',
                 useBundles: false
             });
