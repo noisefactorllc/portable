@@ -307,6 +307,39 @@ plasmaWave().blur().write(o0)
 render(o0)
 ```
 
+### Consumer Contract
+
+Consumer apps (noisedeck, polymorphic, foundry, sharing's embed page, etc.) MUST
+wrap portable effect data in an `Effect` class instance before passing it to
+`registerEffect`. The runtime pipeline relies on identity checks against
+`Effect.prototype` (e.g. `effectDef.asyncInit === Effect.prototype.asyncInit`) to
+decide which lifecycle hooks to run. Plain object literals fail those guards and
+cause runtime errors such as `TypeError: t.asyncInit is not a function`.
+
+The correct pattern:
+
+```js
+import { Effect, registerEffect } from './noisemaker/bundle.js'
+
+const instance = new Effect({
+    name: effectData.name,
+    namespace: effectData.namespace || 'user',
+    func: effectData.func,
+    description: effectData.description,
+    tags: effectData.tags,
+    globals: effectData.globals,
+    passes: effectData.passes
+})
+instance.shaders = effectData.shaders  // attached after construction
+
+registerEffect(`${instance.namespace}.${instance.func}`, instance)
+registerEffect(`${instance.namespace}/${instance.func}`, instance)
+```
+
+The `shaders` object is attached after construction because the `Effect`
+constructor does not accept it as config — it's runtime data the pipeline
+reads directly off the registered instance.
+
 ---
 
 ## Validation
