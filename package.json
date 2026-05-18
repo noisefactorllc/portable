@@ -8,9 +8,9 @@
     "test": "node test-docs.mjs && node test-definition.mjs && node test-viewer.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.95.2",
+    "@anthropic-ai/sdk": "^0.96.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "openai": "^6.37.0"
+    "openai": "^6.38.0"
   },
   "devDependencies": {
     "archiver": "^8.0.0",
