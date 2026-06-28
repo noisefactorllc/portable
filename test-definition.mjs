@@ -1,9 +1,11 @@
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const effectDir = join(__dirname, 'effect');
+// Validate the bundled example effect by default, or any effect directory
+// passed as the first CLI argument (e.g. `node test-definition.mjs path/to/effect`).
+const effectDir = process.argv[2] ? resolve(process.argv[2]) : join(__dirname, 'effect');
 
 let errors = [];
 
@@ -57,7 +59,10 @@ if (def.tags !== undefined) {
 }
 
 // Validate globals (parameters)
-const validParamTypes = ['float', 'int', 'boolean', 'vec2', 'vec3', 'vec4'];
+// Keep in sync with VALID_PARAM_TYPES in test-docs.mjs and the type table in
+// docs/PARAMETERS.md. 'color' is a documented type (vec3 RGB) used throughout
+// the spec examples, so it must validate here too.
+const validParamTypes = ['float', 'int', 'boolean', 'vec2', 'vec3', 'vec4', 'color'];
 if (def.globals) {
     assert(typeof def.globals === 'object', '"globals" is an object');
     for (const [name, spec] of Object.entries(def.globals)) {

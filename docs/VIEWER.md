@@ -7,7 +7,7 @@ The effect viewer is a development environment for testing portable effects loca
 ## Features
 
 - **Full-page canvas** - Effect renders at full viewport resolution
-- **Parameter controls** - Sliders for numeric effect globals (float, int)
+- **Parameter controls** - Type-appropriate controls for every effect global: sliders for `float`/`int` (one per component for `vec2`/`vec3`), a dropdown for `int` parameters with `choices`, a checkbox for `boolean`, and a color picker for `color`
 - **Manual reload** - Click the Reload Effect button or refresh the page after changes
 - **Resize handling** - Canvas adapts to window size changes
 - **Backend auto-detection** - Automatically selects WebGL or WebGPU based on available shader files

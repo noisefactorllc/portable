@@ -108,6 +108,38 @@
             border: none;
         }
 
+        .param-slider + .param-slider {
+            margin-top: 4px;
+        }
+
+        .param-select {
+            width: 100%;
+            background: #333;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .param-color {
+            width: 100%;
+            height: 24px;
+            padding: 0;
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .param-checkbox {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #fff;
+        }
+
         #status {
             position: fixed;
             bottom: 20px;
@@ -265,59 +297,198 @@
             }
         }
 
+        // A type-appropriate fallback when a global omits its default
+        function defaultForType(type) {
+            switch (type) {
+                case 'boolean': return false;
+                case 'vec2': return [0, 0];
+                case 'vec3':
+                case 'color': return [0, 0, 0];
+                case 'vec4': return [0, 0, 0, 0];
+                default: return 0; // float, int
+            }
+        }
+
+        // Color params carry [r, g, b] floats in 0–1; <input type="color"> wants #rrggbb
+        function rgbToHex(arr) {
+            const c = (x) => Math.max(0, Math.min(255, Math.round((x ?? 0) * 255)))
+                .toString(16).padStart(2, '0');
+            return `#${c(arr[0])}${c(arr[1])}${c(arr[2])}`;
+        }
+
+        function hexToRgb(hex) {
+            const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+            if (!m) return [0, 0, 0];
+            return [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255];
+        }
+
+        function setUniformLive(name, value) {
+            if (renderer) {
+                renderer.setUniform(name, value);
+            }
+        }
+
+        // Build a control element for one parameter, wiring live updates and the
+        // value readout. `paramValues` is keyed by the parameter key (`name`),
+        // but the runtime keys uniforms by their GLSL name, so live updates target
+        // `uniformName` (which falls back to the key when no `uniform` is declared).
+        function buildParamControl(name, spec, type, valueSpan) {
+            const uniformName = spec.uniform || name;
+
+            // Integer enum → dropdown
+            if (type === 'int' && spec.choices && typeof spec.choices === 'object') {
+                const select = document.createElement('select');
+                select.className = 'param-select';
+                const labelFor = (v) =>
+                    Object.keys(spec.choices).find(k => spec.choices[k] === v) ?? String(v);
+                // If the default isn't one of the choices, fall back to the first
+                // so the control, the readout, and the uniform stay in agreement.
+                const choiceValues = Object.values(spec.choices);
+                if (!choiceValues.includes(paramValues[name])) {
+                    paramValues[name] = choiceValues[0];
+                }
+                for (const [choiceLabel, val] of Object.entries(spec.choices)) {
+                    const opt = document.createElement('option');
+                    opt.value = String(val);
+                    opt.textContent = choiceLabel;
+                    if (val === paramValues[name]) opt.selected = true;
+                    select.appendChild(opt);
+                }
+                valueSpan.textContent = labelFor(paramValues[name]);
+                select.addEventListener('change', (e) => {
+                    const val = parseInt(e.target.value, 10);
+                    paramValues[name] = val;
+                    valueSpan.textContent = labelFor(val);
+                    setUniformLive(uniformName, val);
+                });
+                return select;
+            }
+
+            // Boolean → checkbox
+            if (type === 'boolean') {
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'param-checkbox';
+                checkbox.checked = !!paramValues[name];
+                valueSpan.textContent = String(checkbox.checked);
+                checkbox.addEventListener('change', (e) => {
+                    const val = e.target.checked;
+                    paramValues[name] = val;
+                    valueSpan.textContent = String(val);
+                    setUniformLive(uniformName, val);
+                });
+                return checkbox;
+            }
+
+            // Color → color picker
+            if (type === 'color') {
+                if (!Array.isArray(paramValues[name])) paramValues[name] = defaultForType('color');
+                const picker = document.createElement('input');
+                picker.type = 'color';
+                picker.className = 'param-color';
+                picker.value = rgbToHex(paramValues[name]);
+                valueSpan.textContent = picker.value;
+                picker.addEventListener('input', (e) => {
+                    const rgb = hexToRgb(e.target.value);
+                    paramValues[name] = rgb;
+                    valueSpan.textContent = e.target.value;
+                    setUniformLive(uniformName, rgb);
+                });
+                return picker;
+            }
+
+            // Vectors → one slider per component. vec4 is handled defensively for
+            // robustness only; the op layer registers it as a color arg and it is
+            // not a documented user-facing parameter type.
+            if (type === 'vec2' || type === 'vec3' || type === 'vec4') {
+                const count = type === 'vec2' ? 2 : (type === 'vec3' ? 3 : 4);
+                if (!Array.isArray(paramValues[name])) paramValues[name] = defaultForType(type);
+                const min = spec.min ?? 0;
+                const max = spec.max ?? 1;
+                const step = spec.step ?? 0.01;
+                const fmt = () =>
+                    '(' + paramValues[name].map(v => Number(v).toFixed(2)).join(', ') + ')';
+                valueSpan.textContent = fmt();
+
+                const container = document.createElement('div');
+                for (let i = 0; i < count; i++) {
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    slider.className = 'param-slider';
+                    slider.min = min;
+                    slider.max = max;
+                    slider.step = step;
+                    slider.value = paramValues[name][i] ?? 0;
+                    slider.addEventListener('input', (e) => {
+                        paramValues[name][i] = parseFloat(e.target.value);
+                        valueSpan.textContent = fmt();
+                        setUniformLive(uniformName, paramValues[name].slice());
+                    });
+                    container.appendChild(slider);
+                }
+                return container;
+            }
+
+            // Default: float / int → single slider
+            const isInt = type === 'int';
+            const fmt = (v) => isInt ? String(Math.round(v)) : Number(v).toFixed(2);
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.className = 'param-slider';
+            slider.min = spec.min ?? 0;
+            slider.max = spec.max ?? (isInt ? 100 : 1);
+            slider.step = spec.step ?? (isInt ? 1 : 0.01);
+            slider.value = paramValues[name];
+            slider.dataset.param = name;
+            valueSpan.textContent = fmt(paramValues[name]);
+            slider.addEventListener('input', (e) => {
+                const val = isInt ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+                paramValues[name] = val;
+                valueSpan.textContent = fmt(val);
+                setUniformLive(uniformName, val);
+            });
+            return slider;
+        }
+
         // Build and render param controls
         function renderParamControls(def) {
             effectNameEl.textContent = `${def.namespace || 'user'}.${def.func}`;
             effectDescEl.textContent = def.description || '';
-            
+
             paramsEl.innerHTML = '';
             const globals = def.globals || {};
-            
+
             for (const [name, spec] of Object.entries(globals)) {
-                // Initialize value if not set
+                const type = spec.type || 'float';
+
+                // Initialize value if not set (preserves values across hot reloads).
+                // Clone array defaults so editing a control never mutates the
+                // parsed definition object.
                 if (paramValues[name] === undefined) {
-                    paramValues[name] = spec.default ?? 0;
+                    const initial = spec.default !== undefined ? spec.default : defaultForType(type);
+                    paramValues[name] = Array.isArray(initial) ? initial.slice() : initial;
                 }
-                
+
                 const group = document.createElement('div');
                 group.className = 'param-group';
-                
+
                 const label = document.createElement('div');
                 label.className = 'param-label';
-                
+
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'param-name';
                 nameSpan.textContent = name;
-                
+
                 const valueSpan = document.createElement('span');
                 valueSpan.className = 'param-value';
-                valueSpan.textContent = paramValues[name].toFixed(2);
-                
+
                 label.appendChild(nameSpan);
                 label.appendChild(valueSpan);
-                
-                const slider = document.createElement('input');
-                slider.type = 'range';
-                slider.className = 'param-slider';
-                slider.min = spec.min ?? 0;
-                slider.max = spec.max ?? 1;
-                slider.step = spec.step ?? 0.01;
-                slider.value = paramValues[name];
-                slider.dataset.param = name;
-                
-                slider.addEventListener('input', (e) => {
-                    const val = parseFloat(e.target.value);
-                    paramValues[name] = val;
-                    valueSpan.textContent = val.toFixed(2);
-                    
-                    // Update uniform
-                    if (renderer) {
-                        renderer.setUniform(name, val);
-                    }
-                });
-                
                 group.appendChild(label);
-                group.appendChild(slider);
+
+                const control = buildParamControl(name, spec, type, valueSpan);
+                if (control) group.appendChild(control);
+
                 paramsEl.appendChild(group);
             }
         }
@@ -401,9 +572,12 @@
                 // Compile - throws on error
                 await renderer.compile(dsl);
                 
-                // Apply param values as uniforms
-                for (const [name, value] of Object.entries(paramValues)) {
-                    renderer.setUniform(name, value);
+                // Apply param values as uniforms. The runtime keys uniforms by
+                // their GLSL name, which may differ from the parameter key when a
+                // global declares an explicit `uniform` (see docs/PARAMETERS.md).
+                for (const [pname, value] of Object.entries(paramValues)) {
+                    const uniformName = (globals[pname] && globals[pname].uniform) || pname;
+                    renderer.setUniform(uniformName, value);
                 }
                 
                 setStatus(`Loaded: ${effectDef.namespace || 'user'}.${effectDef.func} (${currentBackend === 'wgsl' ? 'WebGPU' : 'WebGL'})`, 'success');
