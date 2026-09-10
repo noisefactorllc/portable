@@ -51,6 +51,43 @@ if (def.description !== undefined) {
 if (def.starter !== undefined) {
     assert(typeof def.starter === 'boolean', '"starter" is a boolean');
 }
+if (def.defaultProgram !== undefined) {
+    assert(typeof def.defaultProgram === 'string' && def.defaultProgram.trim().length > 0,
+        '"defaultProgram" is a non-empty DSL string');
+}
+const outputs = new Set((Array.isArray(def.passes) ? def.passes : [])
+    .flatMap(pass => Object.values(pass.outputs || {})));
+for (const [field, passthrough] of [['outputTex3d', 'inputTex3d'], ['outputGeo', 'inputGeo']]) {
+    if (def[field] !== undefined && def[field] !== null) {
+        assert(typeof def[field] === 'string' &&
+            (outputs.has(def[field]) || def[field] === passthrough),
+        `"${field}" names a produced texture or ${passthrough} passthrough`);
+    }
+}
+const positive = value => Number.isFinite(value) && value > 0;
+const optionalPositive = value => value === undefined || positive(value);
+function validDimension(value) {
+    if (value === undefined || ['resolution', 'screen', 'auto'].includes(value)) return true;
+    if (typeof value === 'number') return positive(value);
+    if (typeof value === 'string') return /^\d+(?:\.\d+)?%$/.test(value) && parseFloat(value) > 0;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    if (value.param !== undefined) return typeof value.param === 'string' && value.param.length > 0 &&
+        ['power', 'multiply', 'default', 'paramDefault'].every(key => optionalPositive(value[key]));
+    if (value.screenDivide !== undefined) return typeof value.screenDivide === 'string' && value.screenDivide.length > 0 && optionalPositive(value.default);
+    if (value.scale !== undefined) return positive(value.scale) && (value.clamp === undefined ||
+        (value.clamp && optionalPositive(value.clamp.min) && optionalPositive(value.clamp.max) &&
+            (value.clamp.min === undefined || value.clamp.max === undefined || value.clamp.min <= value.clamp.max)));
+    return false;
+}
+if (def.textures !== undefined) {
+    assert(def.textures && typeof def.textures === 'object' && !Array.isArray(def.textures), '"textures" is an object');
+    for (const [name, texture] of Object.entries(def.textures || {})) {
+        for (const axis of ['width', 'height']) {
+            const value = texture?.[axis];
+            assert(validDimension(value), `texture "${name}" has a valid ${axis}`);
+        }
+    }
+}
 if (def.tags !== undefined) {
     assert(Array.isArray(def.tags), '"tags" is an array');
     if (Array.isArray(def.tags)) {

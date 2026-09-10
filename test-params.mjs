@@ -169,7 +169,7 @@ function startServer() {
     if (controls.sliders < 7) errors.push(`Expected >=7 sliders (float/int/vec components), got ${controls.sliders}`);
 
     // Exercise the live-update handlers: changing a control must run its handler
-    // (which calls renderer.setUniform) without throwing and update the readout.
+    // without throwing, update the readout, and reach the effect's shader pass.
     const interaction = await page.evaluate(() => {
         const params = document.getElementById('params');
         const groups = [...params.querySelectorAll('.param-group')];
@@ -197,15 +197,16 @@ function startServer() {
         const rotationGroup = rotationSlider.closest('.param-group');
         rotationSlider.value = '3.7';
         rotationSlider.dispatchEvent(new Event('input', { bubbles: true }));
-        const globalUniforms = window.__portableRenderingPipeline?.globalUniforms || {};
+        const passUniforms = window.__portableRenderingPipeline?.graph.passes
+            .find(pass => pass.effectKey === 'user.gradientSweep')?.uniforms || {};
 
         return {
             color: readout(colorGroup),
             bool: readout(boolGroup),
             select: readout(selGroup),
             rotationReadout: readout(rotationGroup),
-            uniformSpeed: globalUniforms['speed'],
-            uniformRotation: globalUniforms['rotation']
+            uniformSpeed: passUniforms['speed'],
+            uniformRotation: passUniforms['rotation']
         };
     });
     console.log('After interaction:', JSON.stringify(interaction));
@@ -216,7 +217,7 @@ function startServer() {
     if (interaction.rotationReadout !== '3.70') errors.push(`Float readout did not update (got "${interaction.rotationReadout}")`);
     // The key≠uniform routing check: dragging "rotation" must drive uniform "speed".
     if (interaction.uniformSpeed !== 3.7) {
-        errors.push(`Param "rotation" (uniform "speed") did not route to its GLSL uniform: globalUniforms.speed = ${interaction.uniformSpeed} (expected 3.7); globalUniforms.rotation = ${interaction.uniformRotation}`);
+        errors.push(`Param "rotation" (uniform "speed") did not route to its GLSL uniform: pass.uniforms.speed = ${interaction.uniformSpeed} (expected 3.7); pass.uniforms.rotation = ${interaction.uniformRotation}`);
     }
 
     await browser.close();

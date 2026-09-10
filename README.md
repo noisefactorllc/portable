@@ -266,22 +266,44 @@ render(o0)
 
 ## Effect Types
 
-Portable effects are registered in the `user` namespace and support two types:
+Portable effects are registered in the `user` namespace. Version 1.1 supports
+2D effects and Noisemaker's volume/geometry pipeline:
 
 | Type | `starter` | Description |
 |------|-----------|-------------|
 | **Starter** | `true` | Generates 2D imagery from scratch (called "synth" in Noisedeck) |
 | **Filter** | `false` | Transforms a 2D input texture |
+| **3D starter** | `true` | Produces a volume atlas and optional geometry atlas |
+| **3D filter** | `false` | Processes an upstream volume, preserving or replacing its geometry |
+| **Volume renderer** | `false` | Renders an upstream volume into color and screen-space geometry |
 
-The following built-in effect types are not yet supported as portable effects:
+See [the 3D contract](docs/FORMAT.md#volume-textures-and-geometry) for atlas
+addressing, texture sizes, geometry outputs, and consumer requirements. The
+working [Portable Block 3D example](examples/portableBlock3d/) renders through
+Noisemaker's built-in voxel renderer on WebGL2 and WebGPU. Start the dev server
+and open `viewer/?effect=../examples/portableBlock3d/`.
+
+The [Volume Color 3D example](examples/volumeColor3d/) demonstrates an existing
+`shape3d()` chain passing through a Portable filter and into `render3d()`.
+It preserves density and geometry while changing voxel colors.
+
+`npm test` includes browser checks for both examples, volume-size inheritance,
+geometry passthrough, and exact displayed-pixel agreement for the block.
+The 3D checks require WebGL2 and WebGPU support and network access to the
+Noisemaker shader CDN. On macOS and Windows they use installed Google Chrome.
+Linux CI uses Playwright Chromium with SwiftShader under Xvfb; run
+`npx playwright install --with-deps chromium` and `xvfb-run -a npm test` there.
+
+Existing 2D packages are unchanged. Older app versions that discard volume or
+geometry metadata need updated importers before they can use 3D packages.
+
+The following built-in effect types are not part of this volume extension:
 
 | Type | Namespace | Description |
 |------|-----------|-------------|
 | Mixer | `mixer` | Blends two input textures |
-| 3D Starter | `synth3d` | Generates 3D volumetric data |
-| 3D Filter | `filter3d` | Transforms 3D volumetric data |
 | Points | `points` | Agent/particle simulations |
-| Render | `render` | Rendering utilities (loops, 3D) |
+| Other render utilities | `render` | Loops, meshes, and particle renderers |
 
 ---
 

@@ -1,6 +1,6 @@
 # Portable Effects Format Specification
 
-**Version 1.0**
+**Version 1.1 — 3D volume effects**
 
 This document defines the complete specification for portable shader effects in the Noisemaker ecosystem.
 
@@ -98,18 +98,25 @@ At least one of `name` or `func` must be provided. If `func` is omitted, the `na
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `description` | string | `""` | Human-readable description |
-| `starter` | boolean | `false` | Whether effect can start a chain |
+| `starter` | boolean | inferred | Whether effect can start a chain; infer from pipeline input bindings when omitted |
 | `tags` | string[] | `[]` | Categorization tags |
 | `globals` | object | `{}` | Parameter definitions |
 | `passes` | array | auto | Rendering pass configuration |
 | `textures` | object | `{}` | Internal texture definitions |
 | `defaultProgram` | string | | Example DSL program for this effect |
+| `paramAliases` | object | | Legacy parameter names mapped to current parameter names |
+| `outputTex3d` | string/null | | Internal volume atlas exposed to the next effect, or `inputTex3d` for passthrough; legacy `null` means absent |
+| `outputGeo` | string/null | | Internal geometry texture exposed to the next effect, or `inputGeo` for passthrough; legacy `null` means absent |
+| `uniformLayout` | object/array | | Explicit WGSL uniform-buffer field layout, when required by the shader |
+| `uniformLayouts` | object | | Program-name to WGSL uniform layout mapping for multi-pass shaders |
 
 ---
 
 ## The `starter` Field
 
-Portable effects currently support two types: **starters** and **filters**.
+Portable effects can generate or process 2D images and 3D volumes, or render
+3D volumes into images. All register in `user`; `starter` describes whether
+an effect can begin a chain, independently of its output dimensions.
 
 The `starter` field determines which type:
 
@@ -246,6 +253,9 @@ It is recommended to always provide explicit passes, especially for filter effec
 | `program` | string | Yes | Shader program name (maps to `glsl/{program}.glsl` and/or `wgsl/{program}.wgsl`) |
 | `inputs` | object | Yes | Sampler → texture bindings |
 | `outputs` | object | Yes | Fragment output → texture bindings |
+| `viewport` | object | No | Pass width and height; use atlas dimensions for volume passes |
+| `drawBuffers` | integer | No | Number of color attachments for a multi-output pass |
+| `type` | string | No | `render` (default) or `compute`; state updates use the runtime's compute pass contract |
 
 ### Special Texture Names
 
@@ -253,6 +263,9 @@ It is recommended to always provide explicit passes, especially for filter effec
 |------|-------------|
 | `inputTex` | Pipeline input texture (from previous effect in chain) |
 | `outputTex` | Pipeline output texture (to next effect in chain) |
+| `inputTex3d` | Upstream 3D volume atlas |
+| `inputGeo` | Upstream geometry texture; its meaning depends on the preceding stage |
+| `outputTex3d` | Direct 3D output binding; an internal texture plus the top-level `outputTex3d` field is preferred when declaring its dimensions |
 
 ---
 
@@ -271,6 +284,93 @@ The `textures` object defines internal render targets for multi-pass effects:
 ```
 
 If not specified, textures are created at the output resolution with RGBA8 format.
+Dimensions also accept `screen`, `auto`, percentages such as `"50%"`,
+`{ "scale": 0.5 }`, and `{ "screenDivide": "zoom", "default": 1 }`.
+Parameter dimensions use `{ "param": "volumeSize" }` with optional
+`multiply`, `power`, `paramDefault`, and final computed `default` values.
+
+### Volume textures and geometry
+
+Noisemaker's existing 3D effects store an N³ volume in an N × N² RGBA atlas.
+Voxel `(x, y, z)` occupies texel `(x, y + z * N)`. Use integer texel reads;
+this is data addressing, not image UV mapping. WGSL volume writers use native
+pixel coordinates without the screen-space Y flip used by 2D image shaders.
+
+Declare both texture dimensions and the pass viewport. A volume does not
+inherit the canvas resolution:
+
+```json
+{
+  "name": "My Volume",
+  "func": "myVolume",
+  "starter": true,
+  "globals": {
+    "volumeSize": { "type": "int", "default": 64, "uniform": "volumeSize" }
+  },
+  "textures": {
+    "volume": {
+      "width": { "param": "volumeSize", "default": 64 },
+      "height": { "param": "volumeSize", "power": 2, "default": 4096 },
+      "format": "rgba16f"
+    },
+    "geometry": {
+      "width": { "param": "volumeSize", "default": 64 },
+      "height": { "param": "volumeSize", "power": 2, "default": 4096 },
+      "format": "rgba16f"
+    }
+  },
+  "passes": [{
+    "name": "fill", "program": "fill", "drawBuffers": 2,
+    "viewport": {
+      "width": { "param": "volumeSize", "default": 64 },
+      "height": { "param": "volumeSize", "power": 2, "default": 4096 }
+    },
+    "inputs": {},
+    "outputs": { "color": "volume", "geoOut": "geometry" }
+  }],
+  "outputTex3d": "volume",
+  "outputGeo": "geometry",
+  "defaultProgram": "search user, render\nmyVolume().render3d().write(o0)\nrender(o0)"
+}
+```
+
+For a volume **filter**, read `inputTex3d`, write an explicitly sized atlas,
+and expose it through `outputTex3d`. Use `outputGeo: "inputGeo"` when geometry
+is unchanged; passthrough does not require an unused shader sampler. The
+runtime inherits `volumeSize` from the upstream generator. Consumers must
+preserve missing defaults and must not write UI defaults over that inherited
+value after compilation.
+
+For a volume **renderer**, read `inputTex3d` (and `inputGeo` when needed),
+write `outputTex`, and expose a screen-sized geometry target through
+`outputGeo`. It stores encoded normals in RGB and depth in A. Set
+`outputTex3d: "inputTex3d"` to retain the upstream volume.
+
+The built-in `render3d` and `renderLit3d` threshold the atlas's red channel
+and use RGB for color. Upstream volume geometry can separately carry density
+in A and encoded normals in RGB. A renderer using that independent density
+must explicitly implement that interpretation; merely changing an RGB palette
+does not change the built-in renderers' threshold convention. Geometry from a
+volume generator is an atlas; geometry from a renderer is a screen image.
+
+Existing generators support cubic resolutions such as 16, 32, 64, and 128,
+subject to the device's maximum texture dimension. A wide rectangular world
+needs its own addressing and storage scheme; it is not a larger `volumeSize`
+for the existing cubic filters. All textures remain RGBA. Do not allocate
+user surfaces `o0`–`o7` as internal effect storage.
+
+### Programs and compatibility
+
+`defaultProgram` is a complete DSL program, including `search user` and any
+built-in namespaces it uses. A 3D filter or renderer needs an upstream volume
+in this program. The viewer loads those built-in dependencies before compiling.
+A volume starter without a default program gets a `render3d()` preview;
+filters must provide their input program.
+
+The viewer accepts `?effect=../examples/portableBlock3d/` to preview another
+package directory. Existing 2D packages keep their directory and ZIP layout.
+Older consumers that discard the 3D metadata cannot run these packages
+correctly; they need the consumer changes described below.
 
 ---
 
@@ -319,26 +419,52 @@ cause runtime errors such as `TypeError: t.asyncInit is not a function`.
 The correct pattern:
 
 ```js
-import { Effect, registerEffect } from './noisemaker/bundle.js'
+import { CanvasRenderer, Effect, mergeIntoEnums, registerStarterOps } from './noisemaker/bundle.js'
 
 const instance = new Effect({
     name: effectData.name,
-    namespace: effectData.namespace || 'user',
+    namespace: 'user',
     func: effectData.func,
     description: effectData.description,
     tags: effectData.tags,
     globals: effectData.globals,
-    passes: effectData.passes
+    passes: effectData.passes,
+    textures: effectData.textures,
+    outputTex3d: effectData.outputTex3d,
+    outputGeo: effectData.outputGeo,
+    uniformLayout: effectData.uniformLayout,
+    uniformLayouts: effectData.uniformLayouts,
+    defaultProgram: effectData.defaultProgram,
+    paramAliases: effectData.paramAliases
 })
 instance.shaders = effectData.shaders  // attached after construction
+const pipelineInputs = ['inputTex', 'inputTex3d', 'inputGeo', 'src',
+    'o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7']
+instance.starter = effectData.starter ?? !(instance.passes || []).some(pass =>
+    Object.values(pass.inputs || {}).some(input => pipelineInputs.includes(input)))
 
-registerEffect(`${instance.namespace}.${instance.func}`, instance)
-registerEffect(`${instance.namespace}/${instance.func}`, instance)
+const choices = CanvasRenderer.prototype.registerEffectWithRuntime({
+    namespace: 'user', name: instance.func, instance
+})
+if (choices && Object.keys(choices).length) await mergeIntoEnums(choices)
+if (instance.starter) registerStarterOps([`user.${instance.func}`])
 ```
 
 The `shaders` object is attached after construction because the `Effect`
 constructor does not accept it as config — it's runtime data the pipeline
 reads directly off the registered instance.
+
+Use the runtime registration method to retain parameter aliases, uniform names,
+and sanitized choice names. Consumers that require namespace-only registry
+entries must also preserve any existing bare-name entry around this call, as
+Foundry does.
+
+Preserve the same declarative fields when saving workspaces, importing shared
+effects, re-sharing them, and exporting ZIPs. Preserve **both** shader languages,
+including WGSL-only packages. Register parameter choice enums before compiling;
+an explicit `enum` or `enumPath` takes precedence over a generated choice path.
+Keep effects in the `user` namespace. If `starter` is omitted, infer it from
+pipeline input bindings rather than the effect's position in a sample program.
 
 ---
 

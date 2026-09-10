@@ -35,7 +35,6 @@ const DEPRECATED_PATTERNS = [
     { pattern: /vUv/g, message: 'references vUv (should use gl_FragCoord.xy / resolution)' },
     { pattern: /aspectRatio/g, message: 'references aspectRatio (should be aspect)' },
     { pattern: /uniform\s+vec4\s+mouse/g, message: 'declares mouse uniform (not implemented)' },
-    { pattern: /uniformLayout/g, message: 'references uniformLayout (use ui.category per parameter)' },
     { pattern: / -- /g, message: 'contains double-dash separator' },
     { pattern: /dsl\.txt/g, message: 'references dsl.txt (use defaultProgram in definition.json instead)' },
 ]
@@ -151,16 +150,18 @@ function validateDefinitionJson(json, label) {
             if (pass.outputs) {
                 const outputKeys = Object.keys(pass.outputs)
                 for (const key of outputKeys) {
-                    check(key === 'fragColor' || key === 'color',
-                        `pass output key "${key}" is valid (expected "fragColor" or "color") (${label})`)
+                    check(/^[A-Za-z_][A-Za-z0-9_]*$/.test(key),
+                        `pass output key "${key}" is a shader attachment identifier (${label})`)
+                    check(typeof pass.outputs[key] === 'string' && pass.outputs[key].length > 0,
+                        `pass output "${key}" names a texture (${label})`)
                 }
             }
         }
     }
 
-    // Check for uniformLayout (should not be present - use ui.category instead)
+    // Explicit WGSL buffer layouts are separate from parameter UI categories.
     if (obj.uniformLayout) {
-        check(false, `has uniformLayout (should use ui.category per parameter instead) (${label})`)
+        check(typeof obj.uniformLayout === 'object', `uniformLayout is structured metadata (${label})`)
     }
 }
 

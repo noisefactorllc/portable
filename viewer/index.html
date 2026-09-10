@@ -218,7 +218,7 @@
     <div id="status">Initializing...</div>
 
     <script type="module">
-        import { CanvasRenderer, registerEffect as registerEffectGlobal, registerOp, registerStarterOps } from 'https://shaders.noisedeck.app/1/noisemaker-shaders-core.esm.js';
+        import { CanvasRenderer, Effect, registerStarterOps, mergeIntoEnums, extractEffectNamesFromDsl, extractEffectsFromDsl } from 'https://shaders.noisedeck.app/1/noisemaker-shaders-core.esm.js';
 
         // State
         let renderer = null;
@@ -228,6 +228,12 @@
         let hasGlsl = false;
         let hasWgsl = false;
         let currentBackend = 'glsl';
+        let rendererBackend = null;
+        const editedParams = new Set();
+        let effectSteps = [];
+        // A package remains a directory containing definition.json and shaders.
+        const effectUrl = new URL(new URLSearchParams(location.search).get('effect') || '../effect/', location.href);
+        if (!effectUrl.pathname.endsWith('/')) effectUrl.pathname += '/';
 
         let canvas = document.getElementById('canvas');
         const statusEl = document.getElementById('status');
@@ -255,7 +261,7 @@
         // Load effect definition from JSON
         async function loadEffectDefinition() {
             try {
-                const response = await fetch('/effect/definition.json', { cache: 'no-store' });
+                const response = await fetch(new URL('definition.json', effectUrl), { cache: 'no-store' });
                 if (!response.ok) throw new Error('Failed to load effect definition');
                 
                 const newModified = response.headers.get('Last-Modified');
@@ -270,7 +276,7 @@
 
                     // Try GLSL
                     try {
-                        const glslResponse = await fetch(`/effect/glsl/${program}.glsl`, { cache: 'no-store' });
+                        const glslResponse = await fetch(new URL(`glsl/${program}.glsl`, effectUrl), { cache: 'no-store' });
                         if (glslResponse.ok) {
                             def.shaders[program].glsl = await glslResponse.text();
                         }
@@ -278,7 +284,7 @@
 
                     // Try WGSL
                     try {
-                        const wgslResponse = await fetch(`/effect/wgsl/${program}.wgsl`, { cache: 'no-store' });
+                        const wgslResponse = await fetch(new URL(`wgsl/${program}.wgsl`, effectUrl), { cache: 'no-store' });
                         if (wgslResponse.ok) {
                             def.shaders[program].wgsl = await wgslResponse.text();
                         }
@@ -322,19 +328,20 @@
             return [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255];
         }
 
-        function setUniformLive(name, value) {
-            if (renderer) {
-                renderer.setUniform(name, value);
-            }
+        function applyParamValues(values) {
+            if (!renderer || effectSteps.length === 0) return;
+            renderer.applyStepParameterValues(Object.fromEntries(effectSteps.map(step =>
+                [`step_${step.temp}`, values])));
         }
 
-        // Build a control element for one parameter, wiring live updates and the
-        // value readout. `paramValues` is keyed by the parameter key (`name`),
-        // but the runtime keys uniforms by their GLSL name, so live updates target
-        // `uniformName` (which falls back to the key when no `uniform` is declared).
-        function buildParamControl(name, spec, type, valueSpan) {
-            const uniformName = spec.uniform || name;
+        function setParamLive(name, value) {
+            editedParams.add(name);
+            applyParamValues({ [name]: value });
+        }
 
+        // Pass parameter keys to the scoped runtime API. It resolves explicit
+        // uniform aliases and propagates generator volume sizes within a chain.
+        function buildParamControl(name, spec, type, valueSpan) {
             // Integer enum → dropdown
             if (type === 'int' && spec.choices && typeof spec.choices === 'object') {
                 const select = document.createElement('select');
@@ -359,7 +366,7 @@
                     const val = parseInt(e.target.value, 10);
                     paramValues[name] = val;
                     valueSpan.textContent = labelFor(val);
-                    setUniformLive(uniformName, val);
+                    setParamLive(name, val);
                 });
                 return select;
             }
@@ -375,7 +382,7 @@
                     const val = e.target.checked;
                     paramValues[name] = val;
                     valueSpan.textContent = String(val);
-                    setUniformLive(uniformName, val);
+                    setParamLive(name, val);
                 });
                 return checkbox;
             }
@@ -392,7 +399,7 @@
                     const rgb = hexToRgb(e.target.value);
                     paramValues[name] = rgb;
                     valueSpan.textContent = e.target.value;
-                    setUniformLive(uniformName, rgb);
+                    setParamLive(name, rgb);
                 });
                 return picker;
             }
@@ -422,7 +429,7 @@
                     slider.addEventListener('input', (e) => {
                         paramValues[name][i] = parseFloat(e.target.value);
                         valueSpan.textContent = fmt();
-                        setUniformLive(uniformName, paramValues[name].slice());
+                        setParamLive(name, paramValues[name].slice());
                     });
                     container.appendChild(slider);
                 }
@@ -445,20 +452,21 @@
                 const val = isInt ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
                 paramValues[name] = val;
                 valueSpan.textContent = fmt(val);
-                setUniformLive(uniformName, val);
+                setParamLive(name, val);
             });
             return slider;
         }
 
         // Build and render param controls
         function renderParamControls(def) {
-            effectNameEl.textContent = `${def.namespace || 'user'}.${def.func}`;
+            effectNameEl.textContent = `user.${def.func}`;
             effectDescEl.textContent = def.description || '';
 
             paramsEl.innerHTML = '';
             const globals = def.globals || {};
 
             for (const [name, spec] of Object.entries(globals)) {
+                if (spec.ui?.control === false) continue;
                 const type = spec.type || 'float';
 
                 // Initialize value if not set (preserves values across hot reloads).
@@ -496,12 +504,10 @@
         let backendsInitialized = false;
 
         function detectBackends(def) {
-            hasGlsl = false;
-            hasWgsl = false;
-            for (const program of Object.keys(def.shaders || {})) {
-                if (def.shaders[program].glsl) hasGlsl = true;
-                if (def.shaders[program].wgsl) hasWgsl = true;
-            }
+            const programs = (def.passes || []).map(pass => def.shaders?.[pass.program]);
+            hasGlsl = programs.length > 0 && programs.every(program => program?.glsl);
+            hasWgsl = programs.length > 0 && programs.every(program => program?.wgsl);
+            if (!hasGlsl && !hasWgsl) throw new Error('Every pass must have a shader for at least one shared backend (GLSL or WGSL).');
 
             const toggle = document.getElementById('backend-toggle');
             if (hasGlsl && hasWgsl) {
@@ -523,31 +529,22 @@
         // Compile and run effect
         async function compileAndRun() {
             try {
+                effectSteps = [];
                 effectDef = await loadEffectDefinition();
                 detectBackends(effectDef);
+                if (!renderer || rendererBackend !== currentBackend) await initRenderer();
 
-                const namespace = effectDef.namespace || 'user';
+                const namespace = 'user';
                 const name = effectDef.func;
                 const opName = `${namespace}.${name}`;
                 
-                // Build args from globals
                 const globals = effectDef.globals || {};
-                const args = Object.entries(globals).map(([uname, udef]) => ({
-                    name: uname,
-                    type: udef.type === 'vec4' ? 'color' : (udef.type || 'float'),
-                    default: udef.default ?? 0,
-                    min: udef.min,
-                    max: udef.max,
-                    uniform: udef.uniform || uname
-                }));
-                
-                // Register as op
-                const opSpec = { name: name, args: args };
-                registerOp(opName, opSpec);
-                registerStarterOps([opName]);
+                const pipelineInputs = new Set(['inputTex', 'inputTex3d', 'inputGeo']);
+                const needsInput = (effectDef.passes || []).some(pass => Object.values(pass.inputs || {}).some(input => pipelineInputs.has(input)));
+                const isStarter = effectDef.starter ?? !needsInput;
                 
                 // Create effect instance
-                const instance = {
+                const instance = new Effect({
                     name: effectDef.name,
                     namespace: namespace,
                     func: name,
@@ -555,32 +552,60 @@
                     tags: effectDef.tags || [],
                     globals: globals,
                     passes: effectDef.passes || [],
-                    shaders: effectDef.shaders || {},
-                    starter: effectDef.starter || false,
-                    asyncInit: async () => {}
-                };
+                    textures: effectDef.textures || {},
+                    outputTex3d: effectDef.outputTex3d,
+                    outputGeo: effectDef.outputGeo,
+                    uniformLayout: effectDef.uniformLayout,
+                    uniformLayouts: effectDef.uniformLayouts,
+                    paramAliases: effectDef.paramAliases,
+                    defaultProgram: effectDef.defaultProgram
+                });
+                instance.shaders = effectDef.shaders || {};
+                instance.starter = isStarter;
                 
-                // Register effect
-                registerEffectGlobal(opName, instance);
-                registerEffectGlobal(`${namespace}/${name}`, instance);
+                // Use the same op, alias, and choice registration as consumer apps.
+                const choices = renderer.registerEffectWithRuntime({ namespace, name, instance });
+                await mergeIntoEnums(choices);
+                if (isStarter) registerStarterOps([opName]);
                 
                 renderParamControls(effectDef);
                 
                 // Build DSL with required search directive
-                const dsl = `search ${effectDef.namespace || 'user'}\n${effectDef.func}().write(o0)\nrender(o0)`;
+                let dsl = effectDef.defaultProgram;
+                if (!dsl) {
+                    if (!isStarter) throw new Error('A portable filter or volume renderer needs a defaultProgram with its input chain.');
+                    const renderVolume = effectDef.outputTex3d ? '.render3d()' : '';
+                    dsl = `search user, render\n${effectDef.func}()${renderVolume}.write(o0)\nrender(o0)`;
+                }
+                const manifest = { ...renderer.manifest, [`user/${name}`]: { starter: isStarter } };
+                const builtinEffects = [...new Set(extractEffectNamesFromDsl(dsl, manifest)
+                    .map(effect => effect.effectId)
+                    .filter(id => !id.startsWith('user/')))];
+                await renderer.loadEffects(builtinEffects);
                 
                 // Compile - throws on error
                 await renderer.compile(dsl);
-                
-                // Apply param values as uniforms. The runtime keys uniforms by
-                // their GLSL name, which may differ from the parameter key when a
-                // global declares an explicit `uniform` (see docs/PARAMETERS.md).
-                for (const [pname, value] of Object.entries(paramValues)) {
-                    const uniformName = (globals[pname] && globals[pname].uniform) || pname;
-                    renderer.setUniform(uniformName, value);
+
+                // The program (including upstream volumeSize inheritance) owns
+                // initial values. Only replay controls the user actually edited.
+                effectSteps = extractEffectsFromDsl(dsl).filter(effect => effect.effectKey === opName);
+                const step = effectSteps[0];
+                const pass = step && renderer.pipeline.graph.passes.find(pass => pass.id.startsWith(`node_${step.temp}_`));
+                for (const [key, spec] of Object.entries(globals)) {
+                    const uniform = spec.uniform || key;
+                    if (!editedParams.has(key) && pass?.uniforms?.[uniform] !== undefined) {
+                        paramValues[key] = pass.uniforms[uniform];
+                    }
                 }
+                renderParamControls(effectDef);
+
+                // Replay edits only on this package's steps; built-in effects
+                // keep their own values even when uniform names overlap.
+                applyParamValues(Object.fromEntries(Object.entries(paramValues)
+                    .filter(([name]) => editedParams.has(name))));
                 
-                setStatus(`Loaded: ${effectDef.namespace || 'user'}.${effectDef.func} (${currentBackend === 'wgsl' ? 'WebGPU' : 'WebGL'})`, 'success');
+                renderer.start();
+                setStatus(`Loaded: user.${effectDef.func} (${currentBackend === 'wgsl' ? 'WebGPU' : 'WebGL'})`, 'success');
             } catch (err) {
                 let errorMsg = 'Unknown error';
                 if (err && typeof err === 'object') {
@@ -602,7 +627,7 @@
         // Hot reload check
         async function checkForChanges() {
             try {
-                const response = await fetch('/effect/definition.json', {
+                const response = await fetch(new URL('definition.json', effectUrl), {
                     method: 'HEAD',
                     cache: 'no-store' 
                 });
@@ -626,6 +651,7 @@
         async function initRenderer() {
             if (renderer) {
                 renderer.stop();
+                await renderer.dispose();
             }
             // Replace canvas — a canvas can only hold one context type (WebGL or WebGPU)
             const oldCanvas = canvas;
@@ -640,11 +666,15 @@
 
             renderer = new CanvasRenderer({
                 canvas,
+                width: canvas.width,
+                height: canvas.height,
                 basePath: 'https://shaders.noisedeck.app/1',
+                bundlePath: 'https://shaders.noisedeck.app/1/effects',
                 preferWebGPU: currentBackend === 'wgsl',
-                useBundles: false
+                useBundles: true
             });
             await renderer.loadManifest();
+            rendererBackend = currentBackend;
         }
 
         // Initialize
@@ -655,12 +685,9 @@
                 resizeCanvas();
                 window.addEventListener('resize', resizeCanvas);
 
-                await initRenderer();
                 setStatus('Loading effect...');
 
                 await compileAndRun();
-
-                renderer.start();
 
                 // Expose globals for MCP browser harness
                 // Use defineProperty so renderer reference stays current after backend switching
@@ -697,9 +724,8 @@
                 document.querySelectorAll('input[name="backend"]').forEach(radio => {
                     radio.addEventListener('change', async (e) => {
                         currentBackend = e.target.value;
-                        await initRenderer();
+                        setStatus('Switching backend...');
                         await compileAndRun();
-                        renderer.start();
                     });
                 });
 
