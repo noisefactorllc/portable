@@ -2,8 +2,24 @@ name: Test
 
 on:
   push:
+    paths-ignore:
+      - '*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE*'
+      - '.github/FUNDING.yml'
+      - '.github/CODEOWNERS'
+      - '.editorconfig'
+      - 'docs/**'
     branches: [main]
   pull_request:
+    paths-ignore:
+      - '*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE*'
+      - '.github/FUNDING.yml'
+      - '.github/CODEOWNERS'
+      - '.editorconfig'
+      - 'docs/**'
     branches: [main]
 
 jobs:
@@ -24,4 +40,4 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run tests
-        run: xvfb-run -a npm test
+        run: xvfb-run -a npm run test:runtime

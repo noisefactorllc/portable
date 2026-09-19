@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "npx serve . -l 2999",
     "package": "node package-portable.mjs",
-    "test": "node test-docs.mjs && node test-definition.mjs && node test-volume-definition.mjs && node test-viewer.mjs && node test-params.mjs && node test-3d.mjs"
+    "test": "npm run test:docs && npm run test:runtime",
+    "test:docs": "node test-docs.mjs",
+    "test:runtime": "node test-definition.mjs && node test-volume-definition.mjs && node test-viewer.mjs && node test-params.mjs && node test-3d.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
