@@ -14697,7 +14697,7 @@ function serveFile(filePath, res, corsOrigin) {
 async function acquireServer(port, viewerRoot, effectsDir) {
   if (refCount > 0) {
     if (port !== requestedPort) {
-      throw new Error(`Server already running on port ${activePort} (requested ${requestedPort}), cannot switch to ${port}`);
+      throw new Error(`The server already runs on port ${activePort} (requested ${requestedPort}). It cannot switch to ${port}.`);
     }
     refCount++;
     return getServerUrl();
@@ -14853,7 +14853,7 @@ var BrowserSession = class {
     };
   }
   async setup() {
-    if (this._isSetup) throw new Error("Session already set up. Call teardown() first.");
+    if (this._isSetup) throw new Error("The session is already initialized. Call teardown() first.");
     await acquireBrowserSlot();
     this._slotAcquired = true;
     try {
@@ -15092,8 +15092,8 @@ function toolResult(payload) {
 
 // src/tools/browser/compile.ts
 var compileEffectSchema = {
-  effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
-  effects: external_exports.string().optional().describe("CSV of effect IDs"),
+  effect_id: external_exports.string().optional().describe('One effect ID, such as "synth/noise"'),
+  effects: external_exports.string().optional().describe("Comma-separated effect IDs"),
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend")
 };
 async function compileEffect(session, effectId) {
@@ -15145,7 +15145,7 @@ async function compileEffect(session, effectId) {
 function registerCompileEffect(server2) {
   server2.tool(
     "compileEffect",
-    "Compile shader effect and return pass-level diagnostics. Supports glob/CSV batch.",
+    "Compile a shader effect. Return diagnostics for each pass. Use comma-separated effect IDs for a batch.",
     compileEffectSchema,
     async (args) => {
       const config3 = getConfig();
@@ -15171,14 +15171,14 @@ function registerCompileEffect(server2) {
 
 // src/tools/browser/render.ts
 var renderEffectFrameSchema = {
-  effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
-  effects: external_exports.string().optional().describe("CSV of effect IDs"),
+  effect_id: external_exports.string().optional().describe('One effect ID, such as "synth/noise"'),
+  effects: external_exports.string().optional().describe("Comma-separated effect IDs"),
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend"),
   warmup_frames: external_exports.number().optional().default(10).describe("Frames to wait before capture"),
-  capture_image: external_exports.boolean().optional().default(false).describe("Capture PNG data URI"),
-  uniforms: external_exports.record(external_exports.string(), external_exports.number()).optional().describe("Uniform overrides"),
-  time: external_exports.number().optional().describe("Pause and render at specific time value (seconds)"),
-  resolution: external_exports.tuple([external_exports.number(), external_exports.number()]).optional().describe("Viewport resolution [width, height]")
+  capture_image: external_exports.boolean().optional().default(false).describe("Capture the frame as a PNG data URI"),
+  uniforms: external_exports.record(external_exports.string(), external_exports.number()).optional().describe("Values that override uniforms"),
+  time: external_exports.number().optional().describe("Time in seconds at which to pause and render the frame"),
+  resolution: external_exports.tuple([external_exports.number(), external_exports.number()]).optional().describe("Viewport resolution as [width, height]")
 };
 async function renderEffectFrame(session, effectId, options = {}) {
   return session.runWithConsoleCapture(async () => {
@@ -15326,7 +15326,7 @@ async function renderEffectFrame(session, effectId, options = {}) {
 function registerRenderEffectFrame(server2) {
   server2.tool(
     "renderEffectFrame",
-    "Render single frame, compute image metrics (mean RGB, variance, monochrome/blank detection), optional PNG capture.",
+    "Render one frame. Compute mean RGB, variance, and monochrome/blank detection. Optionally capture a PNG.",
     renderEffectFrameSchema,
     async (args) => {
       const config3 = getConfig();
@@ -15418,7 +15418,7 @@ async function callAnthropic(options) {
   });
   let system = options.system;
   if (options.jsonMode) {
-    system += "\n\nIMPORTANT: Respond with valid JSON only. No markdown, no explanation.";
+    system += "\n\nRespond with valid JSON only. Do not include Markdown or explanations.";
   }
   const response = await client.messages.create({
     model: options.ai.model,
@@ -15448,12 +15448,12 @@ async function callOpenAI(options) {
   });
   return response.choices[0]?.message?.content || null;
 }
-var NO_AI_KEY_MESSAGE = "No AI API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or create .anthropic/.openai file in project root.";
+var NO_AI_KEY_MESSAGE = "No AI API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY. Alternatively, create a .anthropic or .openai file in the project root.";
 
 // src/tools/browser/describe.ts
 var describeEffectFrameSchema = {
-  effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
-  effects: external_exports.string().optional().describe("CSV of effect IDs"),
+  effect_id: external_exports.string().optional().describe('One effect ID, such as "synth/noise"'),
+  effects: external_exports.string().optional().describe("Comma-separated effect IDs"),
   prompt: external_exports.string().describe("Analysis prompt for the AI vision model"),
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend"),
   capture_image: external_exports.boolean().optional().default(false).describe("Return the rendered PNG data URI alongside the description")
@@ -15495,7 +15495,7 @@ async function describeEffectFrame(session, effectId, prompt, options = {}) {
 function registerDescribeEffectFrame(server2) {
   server2.tool(
     "describeEffectFrame",
-    "Render frame + AI vision analysis. User provides analysis prompt.",
+    "Render a frame. Analyze the image with AI vision, using the prompt that the user supplies.",
     describeEffectFrameSchema,
     async (args) => {
       const config3 = getConfig();
@@ -15521,12 +15521,12 @@ function registerDescribeEffectFrame(server2) {
 
 // src/tools/browser/benchmark.ts
 var benchmarkEffectFPSSchema = {
-  effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
-  effects: external_exports.string().optional().describe("CSV of effect IDs"),
+  effect_id: external_exports.string().optional().describe('One effect ID, such as "synth/noise"'),
+  effects: external_exports.string().optional().describe("Comma-separated effect IDs"),
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend"),
   target_fps: external_exports.number().optional().default(60).describe("Target FPS"),
   duration_seconds: external_exports.number().optional().default(5).describe("Benchmark duration in seconds"),
-  resolution: external_exports.tuple([external_exports.number(), external_exports.number()]).optional().describe("Viewport resolution [width, height]")
+  resolution: external_exports.tuple([external_exports.number(), external_exports.number()]).optional().describe("Viewport resolution as [width, height]")
 };
 async function benchmarkEffectFPS(session, effectId, options = {}) {
   const targetFps = options.targetFps ?? 60;
@@ -15606,7 +15606,7 @@ async function benchmarkEffectFPS(session, effectId, options = {}) {
 function registerBenchmarkEffectFPS(server2) {
   server2.tool(
     "benchmarkEffectFPS",
-    "Measure achieved FPS, jitter, frame timing stats against a target framerate.",
+    "Measure achieved FPS, jitter, and frame timing statistics against a target frame rate.",
     benchmarkEffectFPSSchema,
     async (args) => {
       const config3 = getConfig();
@@ -15636,8 +15636,8 @@ function registerBenchmarkEffectFPS(server2) {
 
 // src/tools/browser/uniforms.ts
 var testUniformResponsivenessSchema = {
-  effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
-  effects: external_exports.string().optional().describe("CSV of effect IDs"),
+  effect_id: external_exports.string().optional().describe('One effect ID, such as "synth/noise"'),
+  effects: external_exports.string().optional().describe("Comma-separated effect IDs"),
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend")
 };
 async function testUniformResponsiveness(session, effectId) {
@@ -15740,7 +15740,7 @@ async function testUniformResponsiveness(session, effectId) {
 function registerTestUniformResponsiveness(server2) {
   server2.tool(
     "testUniformResponsiveness",
-    "For each uniform: render baseline, modify value, compare output. Returns per-uniform pass/fail.",
+    "For each uniform:\n1. Render a baseline.\n2. Change the uniform value.\n3. Compare the output.\nReturn a pass/fail result for each uniform.",
     testUniformResponsivenessSchema,
     async (args) => {
       const config3 = getConfig();
@@ -15766,8 +15766,8 @@ function registerTestUniformResponsiveness(server2) {
 
 // src/tools/browser/passthrough.ts
 var testNoPassthroughSchema = {
-  effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
-  effects: external_exports.string().optional().describe("CSV of effect IDs"),
+  effect_id: external_exports.string().optional().describe('One effect ID, such as "synth/noise"'),
+  effects: external_exports.string().optional().describe("Comma-separated effect IDs"),
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend")
 };
 async function testNoPassthrough(session, effectId) {
@@ -15837,7 +15837,7 @@ async function testNoPassthrough(session, effectId) {
 function registerTestNoPassthrough(server2) {
   server2.tool(
     "testNoPassthrough",
-    "Verify filter effects actually modify their input (>1% pixel difference).",
+    "Check that filter effects change their input (>1% pixel difference).",
     testNoPassthroughSchema,
     async (args) => {
       const config3 = getConfig();
@@ -15863,8 +15863,8 @@ function registerTestNoPassthrough(server2) {
 
 // src/tools/browser/parity.ts
 var testPixelParitySchema = {
-  effect_id: external_exports.string().optional().describe('Single effect ID (e.g., "synth/noise")'),
-  effects: external_exports.string().optional().describe("CSV of effect IDs"),
+  effect_id: external_exports.string().optional().describe('One effect ID, such as "synth/noise"'),
+  effects: external_exports.string().optional().describe("Comma-separated effect IDs"),
   epsilon: external_exports.number().optional().default(1).describe("Allowed per-channel difference (0-255)"),
   seed: external_exports.number().optional().default(42).describe("Random seed for reproducible noise")
 };
@@ -16061,7 +16061,7 @@ async function testPixelParity(session, effectId, options = {}) {
 function registerTestPixelParity(server2) {
   server2.tool(
     "testPixelParity",
-    "Render on both WebGL2 and WebGPU, compare pixel-by-pixel within epsilon tolerance.",
+    "Render with both WebGL2 and WebGPU. Compare the output pixel by pixel within the epsilon tolerance.",
     testPixelParitySchema,
     async (args) => {
       const config3 = getConfig();
@@ -16089,9 +16089,9 @@ function registerTestPixelParity(server2) {
 var runDslProgramSchema = {
   dsl: external_exports.string().describe("DSL program string"),
   backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Rendering backend"),
-  warmup_frames: external_exports.number().optional().default(10).describe("Frames to wait"),
-  capture_image: external_exports.boolean().optional().default(false).describe("Capture PNG data URI"),
-  uniforms: external_exports.record(external_exports.string(), external_exports.number()).optional().describe("Uniform overrides")
+  warmup_frames: external_exports.number().optional().default(10).describe("Number of frames to wait before measuring output"),
+  capture_image: external_exports.boolean().optional().default(false).describe("Capture the frame as a PNG data URI"),
+  uniforms: external_exports.record(external_exports.string(), external_exports.number()).optional().describe("Values that override uniforms")
 };
 async function runDslProgram(session, dsl, options = {}) {
   return session.runWithConsoleCapture(async () => {
@@ -16225,7 +16225,7 @@ async function runDslProgram(session, dsl, options = {}) {
 function registerRunDslProgram(server2) {
   server2.tool(
     "runDslProgram",
-    "Compile and execute arbitrary DSL code without pre-defined effect files. Returns metrics + pass status.",
+    "Compile arbitrary DSL code without predefined effect files. Execute the program. Return metrics and pass status.",
     runDslProgramSchema,
     async (args) => {
       const session = new BrowserSession({ backend: args.backend });
@@ -16520,7 +16520,7 @@ async function compareShaders(effectId) {
 function registerCompareShaders(server2) {
   server2.tool(
     "compareShaders",
-    "Static structural comparison: function names, uniform declarations, line counts. No AI needed.",
+    "Compare shader structure: function names, uniform declarations, and line counts. This tool does not require AI.",
     compareShadersSchema,
     async (args) => {
       const result = await compareShaders(args.effect_id);
@@ -16721,7 +16721,7 @@ async function checkEffectStructure(effectId) {
           type: "uniform_function",
           name: u,
           file: `glsl/${gf}`,
-          message: `Uniform "${u}" collides with function "${u}()" in same file`
+          message: `Uniform "${u}" collides with function "${u}()" in the same file`
         });
       }
       if (GLSL_RESERVED.has(u)) {
@@ -16748,7 +16748,7 @@ async function checkEffectStructure(effectId) {
 function registerCheckEffectStructure(server2) {
   server2.tool(
     "checkEffectStructure",
-    "Detect unused files, broken references, naming violations, leaked/undefined uniforms, missing descriptions, structural parity issues, and GLSL name collisions (uniform vs function, reserved words, built-in shadowing).",
+    "Detect these effect issues:\n- unused files\n- broken references\n- naming violations\n- leaked or undefined uniforms\n- missing descriptions\n- structural parity issues\n- GLSL name collisions: uniforms versus functions, reserved words, or built-in shadowing.",
     checkEffectStructureSchema,
     async (args) => {
       const result = await checkEffectStructure(args.effect_id);
@@ -16849,7 +16849,7 @@ Are these algorithmically equivalent?` }
 function registerCheckAlgEquiv(server2) {
   server2.tool(
     "checkAlgEquiv",
-    "AI semantic comparison of GLSL/WGSL pairs. Flags truly divergent algorithms, ignores syntax differences.",
+    "Compare the semantics of GLSL/WGSL pairs with AI. Flag divergent algorithms. Ignore syntax differences.",
     checkAlgEquivSchema,
     async (args) => {
       const result = await checkAlgEquiv(args.effect_id);
@@ -16863,7 +16863,7 @@ import { readFileSync as readFileSync7, readdirSync as readdirSync5, existsSync 
 import { join as join8 } from "path";
 var analyzeBranchingSchema = {
   effect_id: external_exports.string().describe('Effect ID (e.g., "synth/noise")'),
-  backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Which shader language to analyze")
+  backend: external_exports.enum(["webgl2", "webgpu"]).default("webgl2").describe("Backend that selects the shader language to analyze")
 };
 async function analyzeBranching(effectId, backend) {
   const config3 = getConfig();
@@ -16893,7 +16893,7 @@ async function analyzeBranching(effectId, backend) {
   const shaderText = sources.map((s) => `--- ${s.file} ---
 ${s.source}`).join("\n\n");
   const response = await callAI({
-    system: "You are a senior GPU shader developer. Identify UNNECESSARY branching in shader code that could be flattened for better GPU performance. Focus on simple if/else over uniforms, not complex algorithms. Severity: high (inner loops), medium (per-fragment), low (negligible). Respond with JSON: {shaders: [{file, opportunities: [{location, description, severity}], notes}], summary}",
+    system: "You are a senior GPU shader developer. Identify unnecessary shader branches that could be flattened for better GPU performance. Focus on simple if/else over uniforms. Exclude complex algorithms. Assign severity:\n- high: inner loops\n- medium: per-fragment\n- low: negligible.\n Respond with JSON: {shaders: [{file, opportunities: [{location, description, severity}], notes}], summary}",
     userContent: [
       { type: "text", text: `Effect definition:
 ${defContext}
@@ -16927,7 +16927,7 @@ Identify unnecessary branching.` }
 function registerAnalyzeBranching(server2) {
   server2.tool(
     "analyzeBranching",
-    "AI analysis of unnecessary shader branching with optimization suggestions.",
+    "Analyze unnecessary shader branching with AI. Return optimization suggestions.",
     analyzeBranchingSchema,
     async (args) => {
       const result = await analyzeBranching(args.effect_id, args.backend);
@@ -17078,35 +17078,35 @@ var CURATED_KNOWLEDGE = [
   {
     id: "dsl-basics",
     title: "DSL Basics",
-    content: "The shader DSL uses function chaining: search namespace, call effect function with args, write to output buffer (o0), render. Example: search synth\\nnoise(seed: 1).write(o0)\\nrender(o0)",
+    content: "The shader DSL uses function chaining.\n1. Search the namespace.\n2. Call the effect function with arguments.\n3. Write to the output buffer (o0).\n4. Render.\nExample: search synth\\nnoise(seed: 1).write(o0)\\nrender(o0)",
     category: "dsl",
     tags: ["dsl", "syntax", "basics"]
   },
   {
     id: "effect-definition-format",
     title: "Effect Definition Format",
-    content: "Effects are defined as definition.json or definition.js files in namespace directories. They specify func (camelCase name), namespace, description, globals (uniforms with type/min/max/default), and passes (shader programs with inputs/outputs).",
+    content: "Effects use definition.json or definition.js files in namespace directories. Each file specifies:\n- func: the camelCase name\n- namespace\n- description\n- globals: uniforms with type/min/max/default\n- passes: shader programs with inputs/outputs",
     category: "effect-definition",
     tags: ["definition", "format", "structure"]
   },
   {
     id: "glsl-uniforms",
     title: "GLSL Uniform Wiring",
-    content: "Uniforms in GLSL shaders must be declared with matching names from the globals section. Common system uniforms: resolution (vec2), time (float), aspect (float). Custom uniforms use the uniform field from globals.",
+    content: "Declare GLSL uniforms with names that match the globals section. Common system uniforms are resolution (vec2), time (float), and aspect (float). Custom uniforms use the uniform field from globals.",
     category: "glsl",
     tags: ["glsl", "uniforms", "wiring"]
   },
   {
     id: "noise-techniques",
     title: "Noise Generation Techniques",
-    content: "Common noise types: Perlin (smooth gradient noise), Simplex (improved Perlin), Voronoi/Worley (cellular patterns), Value noise (interpolated random), FBM (fractal Brownian motion, layered octaves). Use timeCircle pattern for seamless looping: vec2 tc = vec2(cos(time*TAU), sin(time*TAU)) * radius.",
+    content: "Common noise types include:\n- Perlin: smooth gradient noise\n- Simplex: improved Perlin\n- Voronoi/Worley: cellular patterns\n- Value noise: interpolated random values\n- FBM: fractal Brownian motion with layered octaves\nUse the timeCircle pattern for loops without visible seams: vec2 tc = vec2(cos(time*TAU), sin(time*TAU)) * radius.",
     category: "technique",
     tags: ["noise", "perlin", "simplex", "voronoi", "fbm"]
   },
   {
     id: "sdf-techniques",
     title: "Signed Distance Field Techniques",
-    content: "SDFs define shapes by distance to surface. Common operations: union (min), intersection (max), subtraction, smooth blend (smin). Raymarching steps along ray, checking SDF distance. Common shapes: sphere, box, torus, cylinder.",
+    content: "Signed distance fields (SDFs) define shapes by distance to the surface. Common operations are union (min), intersection (max), subtraction, and smooth blend (smin). Raymarching advances along a ray and checks the SDF distance. Common shapes are spheres, boxes, tori, and cylinders.",
     category: "technique",
     tags: ["sdf", "raymarching", "distance field", "shapes"]
   },
@@ -17120,28 +17120,28 @@ var CURATED_KNOWLEDGE = [
   {
     id: "domain-warping",
     title: "Domain Warping",
-    content: "Domain warping deforms UV coordinates before sampling: warpedUV = uv + noise(uv) * amount. Layered warping: apply noise multiple times. Feedback warping: use previous frame as warp source. Creates organic, fluid patterns.",
+    content: "Domain warping deforms UV coordinates before sampling: warpedUV = uv + noise(uv) * amount. Layered warping applies noise multiple times. Feedback warping uses the previous frame as the warp source. Domain warping creates organic, fluid patterns.",
     category: "technique",
     tags: ["warp", "distortion", "domain", "organic"]
   },
   {
     id: "filter-effects",
     title: "Filter Effect Patterns",
-    content: "Filter effects process an input texture (inputTex). They receive the previous pass output and modify it. Common filters: blur (gaussian kernel), sharpen, edge detection (Sobel), color grading, distortion. Must declare inputTex in pass inputs.",
+    content: "Filter effects process an input texture (inputTex). They receive the previous pass output and modify it. Common filters: blur (gaussian kernel), sharpen, edge detection (Sobel), color grading, distortion. Declare inputTex in the pass inputs.",
     category: "effect-pattern",
     tags: ["filter", "input", "processing", "post-processing"]
   },
   {
     id: "compute-shaders",
     title: "Compute Shader Patterns",
-    content: 'Compute shaders run on GPU without rasterization. Used for GPGPU tasks: particle simulation, cellular automata, physics. Declare pass type as "compute" or "gpgpu". Access storage buffers and textures directly.',
+    content: 'Compute shaders run on the GPU without rasterization. They support GPGPU tasks: particle simulation, cellular automata, and physics. Declare the pass type as "compute" or "gpgpu". Access storage buffers and textures directly.',
     category: "technique",
     tags: ["compute", "gpgpu", "simulation", "particles"]
   },
   {
     id: "animation-patterns",
     title: "Seamless Animation Patterns",
-    content: "For seamless looping: use timeCircle (cos/sin of time*TAU*radius). Avoid raw time in noise - use periodic functions. The Bleuje pattern: t = fract(time), animate properties with sin/cos of t*TAU. Integer transitions with floor(t) for discrete changes.",
+    content: "For loops without visible seams, use timeCircle (cos/sin of time*TAU*radius). Avoid raw time in noise. Use periodic functions. For the Bleuje pattern, set t = fract(time). Animate properties with sin/cos of t*TAU. Use integer transitions with floor(t) for discrete changes.",
     category: "technique",
     tags: ["animation", "loop", "seamless", "time"]
   },
@@ -17155,7 +17155,7 @@ var CURATED_KNOWLEDGE = [
   {
     id: "common-errors",
     title: "Common Shader Errors",
-    content: "Blank output: missing write to output color, wrong output variable name. Static animation: time not connected or not used. Monochrome: using single channel without color mapping. Compilation error: type mismatches, undeclared variables, missing precision qualifiers.",
+    content: "Blank output: the shader does not write the output color, or the output variable name is wrong.\nStatic animation: time is not connected or the shader does not use it.\nMonochrome: the shader uses one channel without color mapping.\nCompilation errors: types do not match, variables lack declarations, or precision qualifiers are missing.",
     category: "errors",
     tags: ["errors", "debug", "troubleshooting", "fix"]
   }
@@ -17163,13 +17163,13 @@ var CURATED_KNOWLEDGE = [
 
 // src/tools/knowledge/search-effects.ts
 var searchEffectsSchema = {
-  query: external_exports.string().describe("Search query - concept, algorithm, tag, or visual style"),
+  query: external_exports.string().describe("Search query: concept, algorithm, tag, or visual style"),
   limit: external_exports.number().optional().default(10).describe("Maximum results")
 };
 function registerSearchEffects(server2) {
   server2.tool(
     "searchEffects",
-    "Search effect library by concept, tag, algorithm, or visual style. Synonym expansion.",
+    "Search the effect library by concept, tag, algorithm, or visual style. The tool expands the query with synonyms.",
     searchEffectsSchema,
     async (args) => {
       const index = await getSharedEffectIndex();
@@ -17199,7 +17199,7 @@ var analyzeEffectSchema = {
 function registerAnalyzeEffect(server2) {
   server2.tool(
     "analyzeEffect",
-    "Deep-dive into an effect: full definition, shader source, uniforms, passes.",
+    "Return the full definition, shader source, uniforms, and passes for an effect.",
     analyzeEffectSchema,
     async (args) => {
       const config3 = getConfig();
@@ -17321,14 +17321,14 @@ async function getGlslIndex() {
   return glslIndex;
 }
 var searchShaderSourceSchema = {
-  query: external_exports.string().describe("Regex search pattern"),
-  context_lines: external_exports.number().optional().default(5).describe("Lines of context around match"),
+  query: external_exports.string().describe("Regular expression to search for"),
+  context_lines: external_exports.number().optional().default(5).describe("Number of context lines around each match"),
   limit: external_exports.number().optional().default(10).describe("Maximum results")
 };
 function registerSearchShaderSource(server2) {
   server2.tool(
     "searchShaderSource",
-    "Regex search through GLSL source code across all effects. Returns matching snippets with context.",
+    "Search GLSL source code across all effects with a regular expression. Return matching snippets with context.",
     searchShaderSourceSchema,
     async (args) => {
       const index = await getGlslIndex();
@@ -17622,7 +17622,7 @@ var searchShaderKnowledgeSchema = {
 function registerSearchShaderKnowledge(server2) {
   server2.tool(
     "searchShaderKnowledge",
-    "Semantic search over curated shader documentation: DSL grammar, GLSL techniques, effect patterns, common errors.",
+    "Search curated shader documentation by meaning: DSL grammar, GLSL techniques, effect patterns, and common errors.",
     searchShaderKnowledgeSchema,
     async (args) => {
       const database = getDB();
@@ -17808,7 +17808,7 @@ function sortKeys(obj) {
 function registerGenerateManifest(server2) {
   server2.tool(
     "generateManifest",
-    "Rebuild effect manifest by scanning effects directory.",
+    "Scan the effects directory to rebuild the effect manifest.",
     generateManifestSchema,
     async () => {
       const config3 = getConfig();
@@ -17855,7 +17855,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.2.2";
+var VERSION = "0.2.3";
 
 // src/index.ts
 var config2 = getConfig();

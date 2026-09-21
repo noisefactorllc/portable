@@ -664,35 +664,35 @@ var CURATED_KNOWLEDGE = [
   {
     id: "dsl-basics",
     title: "DSL Basics",
-    content: "The shader DSL uses function chaining: search namespace, call effect function with args, write to output buffer (o0), render. Example: search synth\\nnoise(seed: 1).write(o0)\\nrender(o0)",
+    content: "The shader DSL uses function chaining.\n1. Search the namespace.\n2. Call the effect function with arguments.\n3. Write to the output buffer (o0).\n4. Render.\nExample: search synth\\nnoise(seed: 1).write(o0)\\nrender(o0)",
     category: "dsl",
     tags: ["dsl", "syntax", "basics"]
   },
   {
     id: "effect-definition-format",
     title: "Effect Definition Format",
-    content: "Effects are defined as definition.json or definition.js files in namespace directories. They specify func (camelCase name), namespace, description, globals (uniforms with type/min/max/default), and passes (shader programs with inputs/outputs).",
+    content: "Effects use definition.json or definition.js files in namespace directories. Each file specifies:\n- func: the camelCase name\n- namespace\n- description\n- globals: uniforms with type/min/max/default\n- passes: shader programs with inputs/outputs",
     category: "effect-definition",
     tags: ["definition", "format", "structure"]
   },
   {
     id: "glsl-uniforms",
     title: "GLSL Uniform Wiring",
-    content: "Uniforms in GLSL shaders must be declared with matching names from the globals section. Common system uniforms: resolution (vec2), time (float), aspect (float). Custom uniforms use the uniform field from globals.",
+    content: "Declare GLSL uniforms with names that match the globals section. Common system uniforms are resolution (vec2), time (float), and aspect (float). Custom uniforms use the uniform field from globals.",
     category: "glsl",
     tags: ["glsl", "uniforms", "wiring"]
   },
   {
     id: "noise-techniques",
     title: "Noise Generation Techniques",
-    content: "Common noise types: Perlin (smooth gradient noise), Simplex (improved Perlin), Voronoi/Worley (cellular patterns), Value noise (interpolated random), FBM (fractal Brownian motion, layered octaves). Use timeCircle pattern for seamless looping: vec2 tc = vec2(cos(time*TAU), sin(time*TAU)) * radius.",
+    content: "Common noise types include:\n- Perlin: smooth gradient noise\n- Simplex: improved Perlin\n- Voronoi/Worley: cellular patterns\n- Value noise: interpolated random values\n- FBM: fractal Brownian motion with layered octaves\nUse the timeCircle pattern for loops without visible seams: vec2 tc = vec2(cos(time*TAU), sin(time*TAU)) * radius.",
     category: "technique",
     tags: ["noise", "perlin", "simplex", "voronoi", "fbm"]
   },
   {
     id: "sdf-techniques",
     title: "Signed Distance Field Techniques",
-    content: "SDFs define shapes by distance to surface. Common operations: union (min), intersection (max), subtraction, smooth blend (smin). Raymarching steps along ray, checking SDF distance. Common shapes: sphere, box, torus, cylinder.",
+    content: "Signed distance fields (SDFs) define shapes by distance to the surface. Common operations are union (min), intersection (max), subtraction, and smooth blend (smin). Raymarching advances along a ray and checks the SDF distance. Common shapes are spheres, boxes, tori, and cylinders.",
     category: "technique",
     tags: ["sdf", "raymarching", "distance field", "shapes"]
   },
@@ -706,28 +706,28 @@ var CURATED_KNOWLEDGE = [
   {
     id: "domain-warping",
     title: "Domain Warping",
-    content: "Domain warping deforms UV coordinates before sampling: warpedUV = uv + noise(uv) * amount. Layered warping: apply noise multiple times. Feedback warping: use previous frame as warp source. Creates organic, fluid patterns.",
+    content: "Domain warping deforms UV coordinates before sampling: warpedUV = uv + noise(uv) * amount. Layered warping applies noise multiple times. Feedback warping uses the previous frame as the warp source. Domain warping creates organic, fluid patterns.",
     category: "technique",
     tags: ["warp", "distortion", "domain", "organic"]
   },
   {
     id: "filter-effects",
     title: "Filter Effect Patterns",
-    content: "Filter effects process an input texture (inputTex). They receive the previous pass output and modify it. Common filters: blur (gaussian kernel), sharpen, edge detection (Sobel), color grading, distortion. Must declare inputTex in pass inputs.",
+    content: "Filter effects process an input texture (inputTex). They receive the previous pass output and modify it. Common filters: blur (gaussian kernel), sharpen, edge detection (Sobel), color grading, distortion. Declare inputTex in the pass inputs.",
     category: "effect-pattern",
     tags: ["filter", "input", "processing", "post-processing"]
   },
   {
     id: "compute-shaders",
     title: "Compute Shader Patterns",
-    content: 'Compute shaders run on GPU without rasterization. Used for GPGPU tasks: particle simulation, cellular automata, physics. Declare pass type as "compute" or "gpgpu". Access storage buffers and textures directly.',
+    content: 'Compute shaders run on the GPU without rasterization. They support GPGPU tasks: particle simulation, cellular automata, and physics. Declare the pass type as "compute" or "gpgpu". Access storage buffers and textures directly.',
     category: "technique",
     tags: ["compute", "gpgpu", "simulation", "particles"]
   },
   {
     id: "animation-patterns",
     title: "Seamless Animation Patterns",
-    content: "For seamless looping: use timeCircle (cos/sin of time*TAU*radius). Avoid raw time in noise - use periodic functions. The Bleuje pattern: t = fract(time), animate properties with sin/cos of t*TAU. Integer transitions with floor(t) for discrete changes.",
+    content: "For loops without visible seams, use timeCircle (cos/sin of time*TAU*radius). Avoid raw time in noise. Use periodic functions. For the Bleuje pattern, set t = fract(time). Animate properties with sin/cos of t*TAU. Use integer transitions with floor(t) for discrete changes.",
     category: "technique",
     tags: ["animation", "loop", "seamless", "time"]
   },
@@ -741,7 +741,7 @@ var CURATED_KNOWLEDGE = [
   {
     id: "common-errors",
     title: "Common Shader Errors",
-    content: "Blank output: missing write to output color, wrong output variable name. Static animation: time not connected or not used. Monochrome: using single channel without color mapping. Compilation error: type mismatches, undeclared variables, missing precision qualifiers.",
+    content: "Blank output: the shader does not write the output color, or the output variable name is wrong.\nStatic animation: time is not connected or the shader does not use it.\nMonochrome: the shader uses one channel without color mapping.\nCompilation errors: types do not match, variables lack declarations, or precision qualifiers are missing.",
     category: "errors",
     tags: ["errors", "debug", "troubleshooting", "fix"]
   }
@@ -751,10 +751,19 @@ var CURATED_KNOWLEDGE = [
 var INNATE_SHADER_KNOWLEDGE = `## NOISEMAKER SHADER SYSTEM - INNATE KNOWLEDGE
 
 ### CURRENT CAPABILITIES - SINGLE-PASS EFFECTS
-You excel at: procedural noise, color palettes, animated patterns, domain warping, kaleidoscope, fractals, basic 3D perspective (grids, tunnels, starfields).
-Possible but not your forte: complex raymarching/SDF scenes - you can try, results may vary.
-NAMESPACE CONSTRAINT: NEVER use synth3d, filter3d, or points namespaces - these require multi-pass rendering not supported in current UI. Stick to synth/filter/mixer.
-If user asks for particles or 3D volumes, explain the namespace limitation and offer single-pass alternatives.
+Your strongest areas are:
+- Procedural noise
+- Color palettes
+- Animated patterns
+- Domain warping
+- Kaleidoscope effects
+- Fractals
+- Basic 3D perspective: grids, tunnels, and starfields
+You can try complex raymarching/SDF scenes, but these are not your strongest areas. Results may vary.
+NAMESPACE CONSTRAINT: NEVER use the synth3d, filter3d, or points namespaces. These require multi-pass rendering, which the current UI does not support. Use only synth/filter/mixer.
+If the user asks for particles or 3D volumes:
+1. Explain the namespace limitation.
+2. Offer single-pass alternatives.
 
 ## NOISE ANIMATION - THE TIMECIRCLE PATTERN
 
@@ -772,25 +781,25 @@ float n = noise(uv * scale + timeCircle * 0.5);
 float n = noise4D(vec4(uv * scale, timeCircle));
 \`\`\`
 
-This is the ONLY pattern for animated noise. There are no alternatives.
+Use this prescribed pattern for animated noise in generated shaders.
 
 ### THE LAWS (NEVER VIOLATE)
-1. **ALL animation MUST use sin() or cos() or periodicValue()**: These are the ONLY functions where both VALUE and DERIVATIVE loop. No linear time, no fract(), no mod().
-2. **ALL noise with time MUST use circle-sampling**: \`vec2(cos(time*TAU), sin(time*TAU))\` as noise coordinates.
-3. **Your effects = USER namespace**: DSL must be \`search user\\nyourEffect().write(o0)\\nrender(o0)\`
-4. **Uniforms must match**: Every uniform in definition.js \u2194 declared in GLSL. Types: float\u2192float, vec3\u2192vec3, boolean\u2192bool
-5. **fragColor required**: Must set \`out vec4 fragColor\` or output is black.
+1. **ALL animation MUST use sin(), cos(), or periodicValue().** Use integer cycle counts when these functions receive raw time. Do not use raw nonperiodic time as the animation signal.
+2. **ALL noise that uses time MUST sample a circle**: \`vec2(cos(time*TAU), sin(time*TAU))\` as noise coordinates.
+3. **Your effects belong to the USER namespace.** The DSL must be \`search user\\nyourEffect().write(o0)\\nrender(o0)\`
+4. **Uniforms must match.** Every uniform in definition.js must have a GLSL declaration. Every GLSL uniform must appear in definition.js. Types: float\u2192float, vec3\u2192vec3, boolean\u2192bool
+5. **fragColor is required.** You must set \`out vec4 fragColor\` or output is black.
 
 ##  WILL IT LOOP - CRITICAL ANIMATION RULES
 
-**This is THE most important section. Master it completely.**
+**This section has the highest priority. You must understand all its rules.**
 
 ### Core Definition
 Treat \`time\` as **1-periodic** on **[0, 1]**: \`t=1\` must be IDENTICAL to \`t=0\`.
-All time-driven values must be continuous across the boundary, and should be smooth enough that there is NO visible "pop" at the seam.
+All values driven by time must be continuous across the boundary. They should be smooth enough to prevent a visible "pop" at the seam.
 
 ### The Mental Model (Bleuje Pattern)
-"A periodic function plus an offset/delay, where **everything** uses the same loopable time basis and each element varies via an offset."
+Use a periodic function with an offset or delay. Everything uses the same looping time basis. Each element varies through an offset.
 - Reference: https://bleuje.com/tutorial2/
 
 ### WHY LOOPS FAIL - The Derivative Rule
@@ -799,10 +808,13 @@ The **velocity/derivative** must ALSO be continuous:
 - value(0) == value(1)  \u2190 position matches
 - value'(0) == value'(1) \u2190 velocity matches (no "hard reset" feel)
 
-**sin() and cos() are the ONLY functions where both VALUE and DERIVATIVE loop perfectly.**
-No linear time, no fract(), no mod(), no smoothstep(), no custom easing.
+**Use sin(), cos(), or periodicValue() as the time basis for generated animation.**
+Use integer cycle counts when these functions receive raw time. Both values and derivatives must match at the loop endpoints.
+Do not use raw nonperiodic time as the animation signal. Do not substitute ramps from fract(), mod(), smoothstep(), or custom easing.
+Spatial uses of fract(), mod(), and smoothstep() are permitted. Compositions with periodic signals must preserve both endpoint values and derivatives.
+Check the final animated result. A function name alone does not guarantee a loop.
 
-### HARD REQUIREMENTS (Verify ALL Before Shipping)
+### HARD REQUIREMENTS (Check ALL Before Shipping)
 
 1. **SEAM EQUALITY + DERIVATIVE CONTINUITY**
    - For EVERY animated scalar/vector: value(0) == value(1) AND value'(0) == value'(1)
@@ -835,7 +847,7 @@ No linear time, no fract(), no mod(), no smoothstep(), no custom easing.
 ### APPROVED LOOPING TECHNIQUES
 
 **1. Periodic Function + Offset (Core Bleuje Pattern)**
-Choose a 1-periodic function of time (period 1 in t \u2208 [0,1]), then apply an offset per-object:
+Choose a 1-periodic function of time (period 1 in t \u2208 [0,1]). Apply an offset to each object:
 \`\`\`glsl
 float phase = time - offset;  // offset creates delay
 float value = 0.5 + 0.5 * sin(phase * TAU);  // smooth 0\u21921\u21920
@@ -905,7 +917,7 @@ float n = noise(uv * scale + timeCircle * 0.5);
 
 ###  AGENT PRE-SHIP CHECKLIST
 
-**You MUST perform LINE-BY-LINE verification in your thinking before calling create_effect.**
+**You MUST check each line in your thinking before calling create_effect.**
 
 For EVERY line that contains "time", "t", or animation:
 
@@ -918,7 +930,7 @@ Line [N]: [code]
   VERDICT: [SAFE/UNSAFE - fix if unsafe]
 \`\`\`
 
-Then verify the global checks:
+Then complete these global checks:
 - [ ] **SEAM CHECK**: Does value(0) == value(1) for EVERY animated value?
 - [ ] **DERIVATIVE CHECK**: Does value'(0) == value'(1)? (velocity matches at seam)
 - [ ] **ROTATION CHECK**: Is every rotation N * TAU * time where N is INTEGER?
@@ -1048,12 +1060,16 @@ Matching value(0) == value(1) is **NOT ENOUGH**! The **velocity/derivative** mus
 - value(0) == value(1)   \u2190 position matches
 - value'(0) == value'(1) \u2190 velocity matches (smooth motion through boundary)
 
-If velocity doesn't match \u2192 **HARD RESET** at t\u22480.999 even if values match!
-This is why fract(), mod(), smoothstep(), and linear time ALL fail - they have derivative discontinuities.
+If the velocities do not match, a **HARD RESET** occurs at t\u22480.999, even if the values match.
+**Use sin(), cos(), or periodicValue() as the time basis for generated animation.**
+Use integer cycle counts when these functions receive raw time. Both values and derivatives must match at the loop endpoints.
+Do not use raw nonperiodic time as the animation signal. Do not substitute ramps from fract(), mod(), smoothstep(), or custom easing.
+Spatial uses of fract(), mod(), and smoothstep() are permitted. Compositions with periodic signals must preserve both endpoint values and derivatives.
+Check the final animated result. A function name alone does not guarantee a loop.
 
 ### THE BLEUJE PATTERN (Approved Looping Method)
 
-Use a periodic function + offset. Mental model: "everything uses the same loopable time basis, each element varies via an offset."
+Use a periodic function with an offset. Everything uses the same looping time basis. Each element varies through an offset.
 
 **CORE HELPERS (copy exactly):**
 \`\`\`glsl
@@ -1071,7 +1087,7 @@ float periodicValue(float time, float offset) {
 
 ### HARD REQUIREMENTS
 
-1. **SEAM + DERIVATIVE**: value(0)==value(1) AND value'(0)==value'(1). sin/cos/periodicValue satisfy both.
+1. **SEAM + DERIVATIVE**: value(0)==value(1) AND value'(0)==value'(1). Use sin/cos/periodicValue with integer cycles of raw time. Check both conditions after composition.
 
 2. **ROTATION**: Integer turns only
    - \`angle = angle0 + TAU * (offsetTurns + float(N) * time)\` where N is INTEGER
@@ -1106,7 +1122,7 @@ float n = noise(uv * scale + timeCircle * 0.5);
 - [ ] Noise uses timeCircle in coordinates?
 
 ### User Effect Namespace
-Your created effects live in USER namespace, not synth/filter/etc.
+The effects you create belong to the USER namespace. They do not belong to synth/filter/etc.
 \`\`\`
 search user
 myEffectName().write(o0)
@@ -1147,8 +1163,8 @@ render(o0)
 \`\`\`
 
 ### Blank/Black Output
-1. Check fragColor is being set
-2. Check values aren't all 0.0
+1. Check that the shader sets fragColor.
+2. Check that the values are not all 0.0.
 3. Add: \`fragColor = vec4(uv, 0.5, 1.0);\` to debug
 
 ### No Animation / Static
@@ -1391,7 +1407,7 @@ void main() {
     // All wave components use sin/cos with time*TAU
     float v = 0.0;
     v += sin(uv.x * scale + t);
-    v += sin(uv.y * scale + t * 0.5);  // 0.5 is fine inside sin()
+    v += sin(uv.y * scale + t);  // One full time cycle per loop
     v += sin((uv.x + uv.y) * scale * 0.5 + t);
     v += sin(length(uv - 0.5) * scale * 2.0 - t);
 
@@ -1502,8 +1518,8 @@ compile_dsl({
 })
 \`\`\`
 
-IMPORTANT: "search user" is MANDATORY - your effect is in the USER namespace!
-IMPORTANT: The effect name must EXACTLY match what you used in create_effect!
+"search user" is MANDATORY. Your effect belongs to the USER namespace.
+The effect name must EXACTLY match the name you used in create_effect.
 
 ### STEP 3: validate_effect
 
@@ -1513,11 +1529,11 @@ Check if the output looks correct.
 
 ### IF YOU SEE "Unknown effect" ERROR
 
-This means ONE of:
-1. You called compile_dsl BEFORE create_effect
-2. create_effect FAILED (check for GLSL errors)
-3. Effect name in DSL doesn't match create_effect name
-4. You forgot "search user" in the DSL
+This error means one of these conditions applies:
+1. You called compile_dsl BEFORE create_effect.
+2. create_effect FAILED. Check for GLSL errors.
+3. The effect name in the DSL does not match the create_effect name.
+4. The DSL does not include "search user".
 
 ### CORRECT DSL PATTERN FOR YOUR EFFECTS
 
@@ -1557,8 +1573,8 @@ yourCustomEffect (whatever name you gave it)
 
 | Error Code | Meaning | Fix |
 |------------|---------|-----|
-| **S001** | Unknown effect | Did you create_effect first? Is the name exact? Did you use "search user"? |
-| **S005** | Illegal chain | Generator in middle of chain. Generators must be first. |
+| **S001** | Unknown effect | Check that create_effect succeeded first. Check the exact name. Check for "search user". |
+| **S005** | Illegal chain | A generator is in the middle of a chain. Generators must be first. |
 | **S006** | Missing write() | Add \`.write(o0)\` at end of chain |
 
 ### PARAMETER NAMES - USE analyze_effect TO DISCOVER
@@ -1580,14 +1596,14 @@ Fix: DSL is high-level: \`noise().write(o0)\` not \`vec2 uv = ...\`
 `;
 var DSL_SCAFFOLDING_PATTERNS = `## DSL Scaffolding Patterns
 
-When generating a DSL program, the structure depends on the EFFECT TYPE.
+The DSL program structure depends on the effect type.
 
 ### Effect Type Detection
 
-1. **STARTER?** No input needed (synth/* effects)
-2. **Has tex: param?** Mixer-type, needs two inputs
-3. **3D effect?** Needs render3d() at end
-4. **POINTS effect?** MUST wrap with pointsEmit/pointsRender
+1. **STARTER (synth/*):** The effect needs no input.
+2. **Has a tex: parameter:** The effect is a mixer and needs two inputs.
+3. **3D effect:** The chain needs render3d() at the end.
+4. **POINTS effect:** You MUST wrap the effect with pointsEmit/pointsRender.
 
 ### SCAFFOLDING: Starter (synth/)
 \`\`\`
@@ -1639,8 +1655,8 @@ myCustomEffect().write(o0)
 render(o0)
 \`\`\`
 
-NOTE: ALL effects created with create_effect go in the 'user' namespace.
-The DSL MUST use 'search user' to find them!
+ALL effects created with create_effect belong to the 'user' namespace.
+The DSL MUST use 'search user' to find these effects.
 
 ### Search Directive by Namespace
 
@@ -1655,11 +1671,11 @@ The DSL MUST use 'search user' to find them!
 
 ### CRITICAL RULES
 
-1. Points effects ALWAYS get pointsEmit/pointsRender wrapper
-2. 3D effects ALWAYS end with render3d()
-3. Filters ALWAYS chain from a generator (never standalone)
-4. Mixers ALWAYS need tex: read(surface) param
-5. Always use noise() as the default starter (with ridges: true)`;
+1. ALWAYS wrap points effects with pointsEmit/pointsRender.
+2. ALWAYS end 3D effect chains with render3d().
+3. ALWAYS chain filters from a generator. Never use filters alone.
+4. ALWAYS supply a tex: read(surface) parameter to mixers.
+5. Always use noise() with ridges: true as the default starter.`;
 var DSL_REFERENCE = `## Polymorphic DSL Grammar
 
 Structure: \`SearchDirective Statement* RenderDirective\`
@@ -1698,16 +1714,17 @@ Structure: \`SearchDirective Statement* RenderDirective\`
 
 ### CRITICAL RULES
 
-1. Namespaces are NOT functions - NEVER call \`synth()\` or \`filter()\`
+1. Namespaces are NOT functions. NEVER call \`synth()\` or \`filter()\`
 2. Every chain MUST end with \`.write(surface)\`
-3. Search directive is MANDATORY first line
-4. render() is MANDATORY last line
-5. Use YOUR effect name from create_effect, not library names`;
+3. The search directive is MANDATORY on the first line.
+4. render() is MANDATORY on the last line.
+5. Use YOUR effect name from create_effect instead of a library name.`;
 
 // src/knowledge/effect-catalog.ts
 var EFFECT_CATALOG = `## Effect Catalog
 
-**IMPORTANT: Do NOT guess parameter names.** Copy parameter names exactly from the example programs below or from the exemplar programs. If you don't see an example of an effect being used with parameters, use it with NO parameters and let the defaults work.
+**Do NOT guess parameter names.** Copy parameter names exactly from the example programs below or from the exemplar programs.
+If no example shows parameters for an effect, use that effect with NO parameters. The effect then uses its defaults.
 
 ### SYNTH (Generators) - Start chains, create images from nothing
 noise, fractal, julia, mandelbrot, newton, cell, perlin, curl, gabor, gradient,
@@ -1718,10 +1735,10 @@ solid, spectrum, subdivide, testPattern
 noise3d, fractal3d, cell3d, flythrough3d, shape3d, rd3d, ca3d
 
 ### FILTER (Processors) - Chain after generators
-adjust, bc, bloom, blur, bulge, celShading, cf, channel, chroma, chromaticAberration,
-clouds, colorspace, corrupt, crt, degauss, deriv, dither, edge, emboss, feedback,
+adjust, bloom, blur, bulge, celShading, cf, channel, chroma, chromaticAberration,
+clouds, corrupt, crt, degauss, deriv, dither, edge, emboss, feedback,
 fibers, flipMirror, fxaa, glowingEdge, glyphMap, grade, grain, grime, historicPalette,
-hs, inv, lens, lensWarp, lightLeak, lighting, lowPoly, motionBlur, normalMap,
+inv, lens, lensWarp, lightLeak, lighting, lowPoly, motionBlur, normalMap,
 normalize, octaveWarp, osd, outline, palette, pinch, pixelSort, pixels, polar,
 posterize, prismaticAberration, reindex, repeat, reverb, ridge, rot, scale,
 scanlineError, scratches, scroll, seamless, sharpen, simpleAberration, sine, skew,
@@ -1780,16 +1797,16 @@ colorLab(colorMode: 2, dither: 0, hueRange: 100, hueRotation: 0, levels: 2, pale
 effects(effect: 4, effectAmt: 2, flip: 0, offsetX: 0, offsetY: 0, rotation: 0, scaleAmt: 100)
 posterize(levels: 6)
 outline()
-colorspace()
-hs(rotation: 120, hueRange: 40)
-bc()
+adjust(mode: hsv)
+adjust(rotation: 120, hueRange: 40)
+adjust()
 \`\`\`
 `;
 
 // src/knowledge/effect-definition.ts
 var EFFECT_DEFINITION_REFERENCE = `## Effect Definition Specification
 
-Effects are JavaScript modules exporting an Effect instance.
+An effect is a JavaScript module that exports an Effect instance.
 
 ### Minimal Structure
 
@@ -1865,7 +1882,7 @@ passes: [
   { name: "pass2", program: "blur2", inputs: { inputTex: "_temp" }, outputs: { fragColor: "outputTex" } }
 ]
 \`\`\``;
-var EFFECT_DEFINITION_DEEP = `## Effect Definition - Guru Level
+var EFFECT_DEFINITION_DEEP = `## Effect Definition Details
 
 ### The Three Data Flows
 
@@ -1953,7 +1970,7 @@ var REQUIRED_PATTERNS = `## REQUIRED Patterns
 | Aspect ratio | \`#define aspectRatio (resolution.x / resolution.y)\` |
 | Animated UV offset | \`uv + vec2(sin(time * TAU), cos(time * TAU))\` |
 | Animated noise | \`noise(pos + vec2(sin(time * TAU), cos(time * TAU)) * 0.5)\` |
-| Uniform declaration | All uniforms in definition.js must be declared in GLSL |
+| Uniform declaration | Declare all uniforms from definition.js in GLSL |
 
 ### DSL Requirements
 
@@ -2002,14 +2019,17 @@ void main() {
 
 ##  WILL IT LOOP - SEAMLESS ANIMATION RULES
 
-**This is THE most critical section for animation. Master it completely.**
+**This section has the highest priority for animation. You must understand all its rules.**
 
 ### Core Definition
 
 Treat \`time\` as **1-periodic** on **[0, 1]**: \`t=1\` must be IDENTICAL to \`t=0\`.
 All time-driven values must be continuous across the boundary with NO visible "pop" at the seam.
 
-The approved mental model (\xC9tienne Jacob / Bleuje): "A periodic function plus an offset/delay, where **everything** uses the same loopable time basis and each element varies via an offset."
+The approved method comes from \xC9tienne Jacob / Bleuje:
+1. Use a periodic function with an offset or delay.
+2. Use the same looping time basis for everything.
+3. Vary each element through an offset.
 
 Reference: [bleuje.com/tutorial2](https://bleuje.com/tutorial2/) and [bleuje.com/tutorial3](https://bleuje.com/tutorial3/)
 
@@ -2018,14 +2038,17 @@ Reference: [bleuje.com/tutorial2](https://bleuje.com/tutorial2/) and [bleuje.com
 **Matching value(0) == value(1) is NOT ENOUGH!**
 The **velocity/derivative** must ALSO match, or you get a "hard reset" at t\u22480.999.
 
-**sin() and cos() are the ONLY functions where both VALUE and DERIVATIVE loop perfectly.**
-No linear time, no fract(), no mod(), no smoothstep(), no custom easing.
+**Use sin(), cos(), or periodicValue() as the time basis for generated animation.**
+Use integer cycle counts when these functions receive raw time. Both values and derivatives must match at the loop endpoints.
+Do not use raw nonperiodic time as the animation signal. Do not substitute ramps from fract(), mod(), smoothstep(), or custom easing.
+Spatial uses of fract(), mod(), and smoothstep() are permitted. Compositions with periodic signals must preserve both endpoint values and derivatives.
+Check the final animated result. A function name alone does not guarantee a loop.
 
-### HARD REQUIREMENTS (Verify ALL Before Shipping)
+### HARD REQUIREMENTS (Check ALL Before Shipping)
 
 1. **SEAM EQUALITY + DERIVATIVE CONTINUITY**
    - For EVERY animated value: value(0) == value(1) AND value'(0) == value'(1)
-   - sin/cos satisfy BOTH conditions automatically
+   - sin/cos with integer cycles of raw time satisfy BOTH conditions. Check both conditions after composition.
    - If the value controls motion, the seam must not create a visible kink
 
 2. **ROTATION = INTEGER TURNS**
@@ -2041,7 +2064,8 @@ No linear time, no fract(), no mod(), no smoothstep(), no custom easing.
    - Pattern: \`pos = start + radius * vec2(cos(TAU*time), sin(TAU*time))\`
 
 4. **NOISE = TIMECIRCLE PATTERN** (Bleuje Tutorial 3)
-   - Map time to a circle, sample noise at that point:
+   - Map time to a circle.
+   - Sample noise at that point:
    - \`vec2 tc = vec2(cos(TAU*time), sin(TAU*time)); noise(uv + tc*0.5);\`
 
 ### THE BLEUJE PATTERN - Periodic Function + Offset
@@ -2139,7 +2163,7 @@ float loopedScalar(float base, float time, float offset, float amp, int cyclesN)
 
 ### Animation Checklist
 
-**Verify your shader uses these patterns:**
+**Check that your shader uses these patterns:**
 
 - [ ] Animation uses sin(time * TAU) or cos(time * TAU)
 - [ ] Cycle multipliers are integers (1, 2, 3...)
@@ -2365,13 +2389,12 @@ color *= 0.8 + 0.2 * scanline;
 ## PROVEN LOOPING IMPLEMENTATIONS FROM NOISEMAKER
 
 These are **real, working implementations** from the Noisemaker effect library.
-**STUDY THESE PATTERNS - they show exactly how to create seamless loops.**
+**Study these patterns. They show exactly how to create loops without visible seams.**
 
 ### EXAMPLE 1: synth/noise - Periodic Function with Time Blend
 
 **Technique:** Use a periodic function to blend noise values over time.
-The noise lattice itself doesn't animate - instead, \`periodicFunction(time)\`
-modulates the blend parameter, creating smooth cyclic variation.
+The noise lattice does not animate. \`periodicFunction(time)\` modulates the blend parameter to create smooth cyclic variation.
 
 \`\`\`glsl
 // From synth/noise - the periodicFunction approach
@@ -2388,14 +2411,12 @@ float blend = periodicFunction(t) * amplitude;  // Smoothly loops!
 vec3 color = multires(st, freq, octaves, seed, blend);
 \`\`\`
 
-**Key insight:** The noise function is stationary - only the \`blend\` parameter
-oscillates via \`periodicFunction(time)\`. The noise coordinates stay fixed.
+The noise function is stationary. Only the \`blend\` parameter oscillates through \`periodicFunction(time)\`. The noise coordinates stay fixed.
 
 ### EXAMPLE 2: synth/perlin - Two Approaches for Different Dimensions
 
 **2D Mode: Rotating Gradient Angles**
-The gradient vectors at each lattice point rotate with time, keeping the
-noise structure coherent while creating smooth animation.
+The gradient vectors at each lattice point rotate with time. This rotation keeps the noise structure coherent and creates smooth animation.
 
 \`\`\`glsl
 // From synth/perlin (2D mode) - gradients rotate with time
@@ -2445,13 +2466,12 @@ float z = time * Z_PERIOD;  // or time / TAU * Z_PERIOD
 float n = noise3D(vec3(uv * scale, z));
 \`\`\`
 
-**Key insight:** The noise volume has periodicity built into the Z dimension.
+The noise volume is periodic in the Z dimension.
 When time reaches 1.0, z wraps to 0.0 identically.
 
 ### EXAMPLE 3: filter/tunnel - Integer Speed for Perfect Loops
 
-**Technique:** When speed is an INTEGER, the tunnel advances by exactly N cells,
-ending at the same position it started. Non-integer speed creates seams.
+**Technique:** When speed is an INTEGER, the tunnel advances by exactly N cells. It ends at its starting position. Non-integer speed creates seams.
 
 \`\`\`glsl
 // From filter/tunnel - integer speed requirement
@@ -2521,23 +2541,23 @@ float val = periodicValue(scaledTime, valueNoise);
 // src/knowledge/workflow-knowledge.ts
 var AGENT_WORKFLOW_KNOWLEDGE = `## SHADER AGENT MINDSET
 
-You are crafting visual art within a sophisticated rendering pipeline.
+You create visual art within a rendering pipeline.
 
 ### MANDATORY TOOL SEQUENCE
 
-**STEP 1: create_effect** \u2192 Creates your shader in USER namespace
-**STEP 2: compile_dsl** \u2192 Uses your effect (MUST use "search user"!)
-**STEP 3: validate_effect** \u2192 Checks visual output
+1. Call **create_effect** to create your shader in the USER namespace.
+2. Call **compile_dsl** to use your effect. You MUST include "search user".
+3. Call **validate_effect** to check the visual output.
 
 NEVER call compile_dsl before create_effect.
 ALWAYS use "search user" in DSL for your effects.
 
 ### THE PIPELINE PHILOSOPHY
 
-**Surfaces are Sacred**: \`o0\`-\`o7\` belong to the USER's composition graph.
+**Composition surfaces**: \`o0\`-\`o7\` belong to the USER's composition graph.
 Effects requiring internal buffers MUST use private textures (prefix with \`_\` or \`global_\`).
 
-**One Way Only**: Never add alternative syntax or aliases. Consistency is sacred.
+**Syntax consistency**: Never add alternative syntax or aliases.
 
 ### VALIDATION DECISION TREE
 
@@ -2572,7 +2592,7 @@ Effects requiring internal buffers MUST use private textures (prefix with \`_\` 
 
 ### EFFECT TYPE SCAFFOLDING
 
-ALL your effects go in USER namespace. Always use "search user":
+ALL your effects belong to the USER namespace. Always use "search user":
 
 | Type | DSL Pattern |
 |------|-------------|
@@ -2590,7 +2610,7 @@ ALL your effects go in USER namespace. Always use "search user":
 | No animation | Using time directly | Use sin(time * TAU) |
 | Controls don't work | Missing uniform | Add to globals |
 
-### THE HONEST DEVELOPER PLEDGE
+### Required checks and conduct
 
 - Never claim success without validation
 - Never disable tests to hide problems
@@ -2614,14 +2634,14 @@ precision highp float;
 void main() { fragColor = vec4(1.0); }
 \`\`\`
 
-### SEARCH TOOLS - Use the Library!
+### Search tools
 
-- **search_shader_knowledge** - ASK THE GURU! Query docs, patterns, errors
+- **search_shader_knowledge** - Search documentation, patterns, and errors
 - search_effects - Find by name/tags
 - search_shader_source - Find GLSL patterns
 - analyze_effect - Get full shader code
 
-**When confused, use search_shader_knowledge first!**
+**When uncertain, use search_shader_knowledge first.**
 Query: "how to animate", "effect definition format", "common errors"
 
 ### DSL Scaffolding
@@ -2650,7 +2670,7 @@ void main() {
 \`\`\`
 
 ### Animation (CRITICAL - WILL IT LOOP?)
-**ONLY use sin()/cos()/periodicValue()** - these are the ONLY functions where both value AND derivative loop.
+**ONLY use sin()/cos()/periodicValue().** These are the ONLY functions where both value and derivative loop.
 
 **APPROVED:**
 - \`sin(time * TAU)\`, \`cos(time * TAU)\`
@@ -2668,7 +2688,7 @@ void main() {
 var DSL_EXEMPLAR_PATTERNS = `
 ## Canonical DSL Scaffolding Patterns
 
-These patterns are MANDATORY \u2014 always follow them for the given effect type.
+These patterns are MANDATORY. Always use the pattern for the given effect type.
 
 ### Points (particle systems)
 \`\`\`
@@ -2731,13 +2751,13 @@ render(o0)
 \`\`\`
 
 ### RULES
-1. Points effects ALWAYS get pointsEmit()/pointsRender() wrapper
-2. Billboard particles need a sprite on a SEPARATE surface
-3. 3D effects ALWAYS end with render3d()
-4. Filters ALWAYS chain from a generator (never standalone)
-5. Mixers ALWAYS need tex: read(surface) param
-6. Feedback loops use loopBegin()/loopEnd() with filter effects inside
-7. Always use noise() as the default starter (with ridges: true for visual interest)
+1. ALWAYS wrap points effects with pointsEmit()/pointsRender().
+2. Put the sprite for billboard particles on a SEPARATE surface.
+3. ALWAYS end 3D effect chains with render3d().
+4. ALWAYS chain filters from a generator. Never use filters alone.
+5. ALWAYS supply a tex: read(surface) parameter to mixers.
+6. Put filter effects between loopBegin()/loopEnd() in feedback loops.
+7. Always use noise() as the default starter. Set ridges: true for visual interest.
 `;
 var DSL_EXEMPLAR_PROGRAMS = [
   // ── Basics (all 8) ──────────────────────────────────────────────────────
@@ -3238,7 +3258,7 @@ var DSL_EXEMPLAR_PROGRAMS = [
   },
   {
     name: "oklab color",
-    dsl: "search synth, filter\n\nnoise(ridges: true)\n  .colorspace(mode: oklab)\n  .write(o0)\nrender(o0)",
+    dsl: "search synth, filter\n\nnoise(ridges: true)\n  .adjust(mode: oklab)\n  .write(o0)\nrender(o0)",
     tags: ["filter", "colorspace", "oklab", "color"],
     description: "Noise processed in perceptual oklab color space"
   },
@@ -3775,7 +3795,7 @@ function searchExemplars(query, maxResults = 5) {
 // src/knowledge/state-bundles.ts
 var RESEARCH_KNOWLEDGE = `
 ## RESEARCH PHASE EXPERTISE
-You are finding templates and understanding what effects can do.
+Find templates. Determine what the effects can do.
 
 **USE search_shader_knowledge** when you need to understand DSL syntax, effect patterns, or GLSL techniques.
 Query: "how to structure a filter effect", "noise function patterns", etc.
@@ -3787,7 +3807,7 @@ ${COMPACT_SHADER_KNOWLEDGE}
 var PLAN_KNOWLEDGE = `
 ## PLAN PHASE EXPERTISE
 You create the effect specification. You are an expert in DSL and Effect Definition format.
-You do NOT write GLSL shader code - you prescribe what the GENERATE phase should implement.
+Do NOT write GLSL shader code. Specify what the GENERATE phase should implement.
 
 ${DSL_CRITICAL_RULES}
 
@@ -3828,10 +3848,10 @@ ${GLSL_RECIPES}
 ${REQUIRED_PATTERNS}
 
 ### Uniform Wiring Rules
-1. Every uniform in definition.js MUST be declared in GLSL
+1. You MUST declare every uniform from definition.js in GLSL.
 2. Types must match: float\u2192float, int\u2192int, boolean\u2192bool, vec2\u2192vec2, vec3\u2192vec3, vec4\u2192vec4
 3. Standard uniforms (always available): time, resolution
-4. For filters: uniform sampler2D inputTex;
+4. For filters, declare \`uniform sampler2D inputTex;\`.
 
 ## \u{1F6D1}\u{1F6D1}\u{1F6D1} NOISE LOOPING - READ BEFORE CODING \u{1F6D1}\u{1F6D1}\u{1F6D1}
 
@@ -3844,22 +3864,26 @@ vec2 timeCircle = vec2(cos(t), sin(t));
 float n = noise(uv * scale + timeCircle * 0.5);
 \`\`\`
 
-This is the only pattern for animated noise. There are no alternatives.
+Use this prescribed pattern for animated noise in generated shaders.
 
 ###  SEAMLESS LOOPING - HARD REQUIREMENTS
 
-**Time is 1-periodic on [0,1]. The loop must be INVISIBLE - no pop, no stutter, no hard reset.**
+**Time is 1-periodic on [0,1]. The loop must have no visible pop, stutter, or hard reset.**
 
 **THE DERIVATIVE RULE (WHY LOOPS FAIL):**
 Matching value(0) == value(1) is NOT ENOUGH! The **velocity/derivative** must ALSO match:
 - value(0) == value(1)  \u2190 position matches
 - value'(0) == value'(1) \u2190 velocity matches (smooth motion through boundary)
 
-If velocity doesn't match, you get a "hard reset" feel at t\u22480.999 even though values match.
-This is why fract(), mod(), smoothstep(), and linear time ALL fail - they have derivative discontinuities.
+If the velocities do not match, a "hard reset" occurs at t\u22480.999, even if the values match.
+**Use sin(), cos(), or periodicValue() as the time basis for generated animation.**
+Use integer cycle counts when these functions receive raw time. Both values and derivatives must match at the loop endpoints.
+Do not use raw nonperiodic time as the animation signal. Do not substitute ramps from fract(), mod(), smoothstep(), or custom easing.
+Spatial uses of fract(), mod(), and smoothstep() are permitted. Compositions with periodic signals must preserve both endpoint values and derivatives.
+Check the final animated result. A function name alone does not guarantee a loop.
 
 **THE BLEUJE PATTERN (Approved Looping Method):**
-Use a periodic function + offset. The mental model: "everything uses the same loopable time basis, each element varies via an offset."
+Use a periodic function with an offset. Everything uses the same looping time basis. Each element varies through an offset.
 
 \`\`\`glsl
 // Core looping helpers - COPY THESE EXACTLY
@@ -3879,7 +3903,7 @@ float periodicValue(float time, float offset) {
 
 1. **SEAM EQUALITY + DERIVATIVE CONTINUITY**
    - value(0) == value(1) AND value'(0) == value'(1)
-   - sin() and cos() satisfy BOTH conditions
+   - sin() and cos() with integer cycles of raw time satisfy BOTH conditions. Check both conditions after composition.
 
 2. **ROTATION**: \`angle = float(N) * TAU * time\` where N is integer (1, 2, 3...)
 
@@ -3951,7 +3975,9 @@ float n = noise(uv * scale + timeCircle * 0.5);  // Animated noise
 
 ### Core Principle: Periodic Function + Offset
 The approved mental model (from \xC9tienne Jacob aka Bleuje):
-- "A periodic function plus an offset/delay, where everything uses the same loopable time basis and each element varies via an offset."
+- Use a periodic function with an offset or delay.
+- Everything uses the same looping time basis.
+- Each element varies through an offset.
 
 ### Hard Requirements (VERIFY ALL BEFORE SHIPPING):
 
@@ -3970,7 +3996,8 @@ The approved mental model (from \xC9tienne Jacob aka Bleuje):
    - Oscillation: \`pos = start + dir * (amplitude * sin(TAU * phase))\`
 
 4. **NOISE = CIRCLE-SAMPLED (Bleuje Tutorial 3)**
-   - Map time to a circle, sample noise at that point:
+   - Map time to a circle.
+   - Sample noise at that point:
    \`\`\`glsl
    vec2 tc = vec2(cos(TAU * time), sin(TAU * time));
    float n = noise4D(vec4(uv * scale, tc));
@@ -3981,34 +4008,34 @@ The approved mental model (from \xC9tienne Jacob aka Bleuje):
 - [ ] Is ALL time-based animation using sin(), cos(), or periodicValue()?
 - [ ] Are ALL cycle/rotation counts INTEGERS? (1, 2, 3)
 - [ ] Is noise sampled on a time-circle?
-- [ ] Does the derivative (velocity) also loop? (sin/cos guarantee this)
+- [ ] Does the derivative (velocity) also loop in the final animated result?
 - [ ] Have you verified value(0) == value(1) for EVERY animated channel?
 `;
 var VALIDATE_KNOWLEDGE = `
 ## VALIDATE PHASE EXPERTISE
-You verify the effect package is complete and correct.
+Check that the effect package is complete and correct.
 
 ### Validation Checklist
-1. All uniforms in definition.js are declared in GLSL
-2. All uniforms in GLSL exist in definition.js globals
-3. DSL program uses correct scaffolding pattern for effect type
-4. Animation uses sin(time*TAU) or cos(time*TAU), never raw time
-5. Filter effects chain from a generator
-6. Mixer effects have tex: read(surface) parameter
+1. Check that GLSL declares all uniforms from definition.js.
+2. Check that definition.js globals include all GLSL uniforms.
+3. Check that the DSL program uses the correct scaffolding pattern for the effect type.
+4. Check that animation uses sin(time*TAU) or cos(time*TAU), never raw time.
+5. Check that filter effects chain from a generator.
+6. Check that mixer effects have a tex: read(surface) parameter.
 `;
 var FIX_KNOWLEDGE = `
 ## FIX PHASE EXPERTISE
-You diagnose and fix specific issues. Focus on the problem, don't rebuild from scratch.
+You diagnose and fix specific issues. Focus on the problem. Do not rebuild the effect from the beginning.
 
 ### CRITICAL: "Unknown effect" Error
 
-If you see "Unknown effect: '<name>'" in compile_dsl error:
+If compile_dsl returns "Unknown effect: '<name>'":
 
 1. **Did create_effect succeed?** Check the previous tool result.
-2. **Is the DSL using 'search user'?** Your effect is in USER namespace!
-3. **Is the name EXACT?** Case-sensitive, character-for-character match.
+2. **Does the DSL include 'search user'?** Your effect belongs to the USER namespace.
+3. **Does the name match EXACTLY?** Check every character, including letter case.
 
-FIX: Ensure your DSL looks like:
+Use this DSL structure:
 \`\`\`
 search user
 yourEffectName().write(o0)
@@ -4031,7 +4058,7 @@ ${REQUIRED_PATTERNS}
 `;
 var DSL_RESEARCH_KNOWLEDGE = `
 ## DSL RESEARCH PHASE
-You are finding effects and example programs to compose a DSL program.
+Find effects and example programs to compose a DSL program.
 
 ${EFFECT_CATALOG}
 
