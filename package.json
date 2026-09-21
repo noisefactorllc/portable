@@ -10,9 +10,9 @@
     "test:runtime": "node test-definition.mjs && node test-volume-definition.mjs && node test-viewer.mjs && node test-params.mjs && node test-3d.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.125.0",
+    "@anthropic-ai/sdk": "^0.126.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "openai": "^7.15.0"
+    "openai": "^7.18.0"
   },
   "devDependencies": {
     "archiver": "^8.0.0",
