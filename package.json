@@ -7,7 +7,7 @@
     "package": "node package-portable.mjs",
     "test": "npm run test:docs && npm run test:runtime",
     "test:docs": "node test-docs.mjs",
-    "test:runtime": "node test-definition.mjs && node test-volume-definition.mjs && node test-viewer.mjs && node test-params.mjs && node test-3d.mjs"
+    "test:runtime": "node test-definition.mjs && node test-volume-definition.mjs && node test-viewer.mjs && node test-params.mjs && node test-hotreload.mjs && node test-3d.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

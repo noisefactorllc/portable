@@ -224,13 +224,29 @@
         let renderer = null;
         let effectDef = null;
         let paramValues = {};
+        // Change validator of the loaded definition.json. Prefers
+        // Last-Modified and falls back to ETag, which static dev servers
+        // like `serve` emit instead.
         let lastModified = null;
+        // Set after the first poll tick following a load, whose verified
+        // rebase (a HEAD/GET disagreement is confirmed by GET before
+        // reloading) makes later comparisons like-for-like and immune to
+        // GET/HEAD header skew.
+        let definitionHeadSeen = false;
         let hasGlsl = false;
         let hasWgsl = false;
         let currentBackend = 'glsl';
         let rendererBackend = null;
         const editedParams = new Set();
         let effectSteps = [];
+        // Last-Modified stamps of the currently loaded shader files, keyed by
+        // `program:lang`; shader-only edits also trigger a hot reload.
+        // shaderHeadSeen marks keys whose stamp was rebased after the first
+        // poll tick (verified against GET), so stamps always compare
+        // like-for-like afterwards and servers with GET/HEAD header skew
+        // can't cause reload loops.
+        const shaderModified = new Map();
+        const shaderHeadSeen = new Set();
         // A package remains a directory containing definition.json and shaders.
         const effectUrl = new URL(new URLSearchParams(location.search).get('effect') || '../effect/', location.href);
         if (!effectUrl.pathname.endsWith('/')) effectUrl.pathname += '/';
@@ -264,12 +280,15 @@
                 const response = await fetch(new URL('definition.json', effectUrl), { cache: 'no-store' });
                 if (!response.ok) throw new Error('Failed to load effect definition');
                 
-                const newModified = response.headers.get('Last-Modified');
+                const newModified = response.headers.get('Last-Modified')
+                    || response.headers.get('ETag');
                 const def = await response.json();
                 
                 // Load shader sources (try both GLSL and WGSL)
                 const programs = (def.passes || []).map(p => p.program);
                 def.shaders = def.shaders || {};
+                shaderModified.clear();
+                shaderHeadSeen.clear();
 
                 for (const program of programs) {
                     def.shaders[program] = {};
@@ -277,18 +296,24 @@
                     // Try GLSL
                     try {
                         const glslResponse = await fetch(new URL(`glsl/${program}.glsl`, effectUrl), { cache: 'no-store' });
+                        shaderModified.set(`${program}:glsl`, glslResponse.ok
+                            ? (glslResponse.headers.get('Last-Modified') || glslResponse.headers.get('ETag'))
+                            : null);
                         if (glslResponse.ok) {
                             def.shaders[program].glsl = await glslResponse.text();
                         }
-                    } catch (e) { /* not available */ }
+                    } catch (e) { /* not available */ shaderModified.set(`${program}:glsl`, null); }
 
                     // Try WGSL
                     try {
                         const wgslResponse = await fetch(new URL(`wgsl/${program}.wgsl`, effectUrl), { cache: 'no-store' });
+                        shaderModified.set(`${program}:wgsl`, wgslResponse.ok
+                            ? (wgslResponse.headers.get('Last-Modified') || wgslResponse.headers.get('ETag'))
+                            : null);
                         if (wgslResponse.ok) {
                             def.shaders[program].wgsl = await wgslResponse.text();
                         }
-                    } catch (e) { /* not available */ }
+                    } catch (e) { /* not available */ shaderModified.set(`${program}:wgsl`, null); }
 
                     // At least one must succeed
                     if (!def.shaders[program].glsl && !def.shaders[program].wgsl) {
@@ -297,6 +322,7 @@
                 }
                 
                 lastModified = newModified;
+                definitionHeadSeen = false;
                 return def;
             } catch (err) {
                 throw new Error(`Failed to load effect: ${err.message}`);
@@ -624,18 +650,95 @@
             }
         }
 
+        // A reload triggered by a poll is in progress; later ticks wait
+        // instead of stacking overlapping compiles.
+        let pollReloadActive = false;
+
+        // Last-Modified with ETag fallback: static dev servers like `serve`
+        // emit only an ETag.
+        function responseValidator(response) {
+            return response.ok
+                ? (response.headers.get('Last-Modified') || response.headers.get('ETag'))
+                : null;
+        }
+
+        // A HEAD stamp differing from the stored GET stamp can be a real edit
+        // OR GET/HEAD header skew. A GET settles it: a real edit changes the
+        // GET validator too, while skew leaves it unchanged (then the stored
+        // stamp is rebased to the HEAD value so later ticks compare
+        // HEAD-vs-HEAD).
+        async function stampDiffers(getUrl, getStamp) {
+            const getResponse = await fetch(getUrl, { cache: 'no-store' });
+            return responseValidator(getResponse) !== getStamp;
+        }
+
+        async function reloadOnChange(statusMessage) {
+            pollReloadActive = true;
+            try {
+                setStatus(statusMessage, 'success');
+                await compileAndRun();
+            } finally {
+                pollReloadActive = false;
+            }
+        }
+
         // Hot reload check
         async function checkForChanges() {
+            if (pollReloadActive) return;
             try {
-                const response = await fetch(new URL('definition.json', effectUrl), {
+                const definitionUrl = new URL('definition.json', effectUrl);
+                const response = await fetch(definitionUrl, {
                     method: 'HEAD',
-                    cache: 'no-store' 
+                    cache: 'no-store'
                 });
-                const newModified = response.headers.get('Last-Modified');
-                
-                if (lastModified && newModified !== lastModified) {
-                    setStatus('Changes detected, reloading...', 'success');
-                    await compileAndRun();
+                const headValidator = responseValidator(response);
+
+                if (!definitionHeadSeen) {
+                    // First tick after a load: only the GET decides whether an
+                    // edit landed in the load→poll window; skew is absorbed by
+                    // rebasing instead.
+                    definitionHeadSeen = true;
+                    if (lastModified !== null && headValidator !== lastModified
+                        && await stampDiffers(definitionUrl, lastModified)) {
+                        await reloadOnChange('Changes detected, reloading...');
+                        return;
+                    }
+                    lastModified = headValidator;
+                } else if (lastModified !== null && headValidator !== lastModified) {
+                    await reloadOnChange('Changes detected, reloading...');
+                    return;
+                }
+
+                // Shader-only edits don't touch definition.json; poll each
+                // loaded shader file the same way. Missing files are stable
+                // (null === null) so failed loads don't loop.
+                for (const [key, stamp] of shaderModified) {
+                    // Program names may legally contain ':', so split on the
+                    // LAST separator (program:lang).
+                    const sep = key.lastIndexOf(':');
+                    const program = key.slice(0, sep);
+                    const lang = key.slice(sep + 1);
+                    const shaderUrl = new URL(`${lang}/${program}.${lang}`, effectUrl);
+                    const headStamp = responseValidator(await fetch(shaderUrl, {
+                        method: 'HEAD',
+                        cache: 'no-store'
+                    }));
+                    if (!shaderHeadSeen.has(key)) {
+                        // First tick after a load: same verified rebase as the
+                        // definition, so an edit in the load→poll window still
+                        // triggers a reload and skew can't loop.
+                        shaderHeadSeen.add(key);
+                        if (headStamp !== stamp && await stampDiffers(shaderUrl, stamp)) {
+                            await reloadOnChange('Shader changes detected, reloading...');
+                            return;
+                        }
+                        shaderModified.set(key, headStamp);
+                        continue;
+                    }
+                    if (headStamp !== stamp) {
+                        await reloadOnChange('Shader changes detected, reloading...');
+                        return;
+                    }
                 }
             } catch (err) {
                 // Ignore polling errors
