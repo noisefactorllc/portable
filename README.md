@@ -5,6 +5,8 @@
 
 # Portable Effects for Noisemaker
 
+<img src="logo.svg" alt="Portable logo" width="96" height="96">
+
 > ⚠️ **Note:** The Portable Effects specification is still being finalized and may change.
 
 **The Portable Effects Format** is an open standard for sharing shader effects across the Noise Factor ecosystem.
