@@ -74,6 +74,7 @@ function startServer() {
     let expectLoadError = false;
     let shaderEtag = '"glsl-v1"';
     let shaderBody = null;
+    const shaderGets = [];
 
     try {
         const browser = await chromium.launch({ headless: true });
@@ -121,6 +122,7 @@ function startServer() {
                     body = readFileSync(join(__dirname, 'effect', 'glsl', 'gradientSweep.glsl'), 'utf8');
                     shaderBody = body;
                 }
+                shaderGets.push({ etag: shaderEtag, body });
                 route.fulfill({ status: 200, headers, body });
             }
         });
@@ -131,7 +133,7 @@ function startServer() {
         await page.waitForFunction(() => {
             const el = document.getElementById('status');
             return el && el.className === 'success';
-        }, { timeout: 20000 });
+        }, null, { timeout: 20000 });
         const initial = await page.textContent('#status');
         console.log('Initial:', initial);
         if (!/Loaded/.test(initial)) errors.push(`Initial status not Loaded: ${initial}`);
@@ -142,6 +144,19 @@ function startServer() {
         const settled = await page.textContent('#status');
         if (settled !== initial) errors.push(`Poll tick changed status without an edit: ${settled}`);
         console.log('Stable after 2.5s:', settled);
+
+        // Record status transitions before changing the validator. The reload
+        // notice can be replaced by Loaded before a polling assertion sees it.
+        await page.evaluate(() => {
+            const status = document.getElementById('status');
+            window.__hotReloadStatuses = [];
+            new MutationObserver(() => {
+                window.__hotReloadStatuses.push({
+                    text: status.textContent,
+                    className: status.className
+                });
+            }).observe(status, { childList: true, characterData: true, attributes: true, subtree: true });
+        });
 
         // Simulate a shader edit: bump the ETag the poll compares and change
         // the shader body semantically (a constant red instead of the
@@ -154,17 +169,25 @@ function startServer() {
             errors.push('Semantic shader edit did not apply (fixture mismatch)');
         }
 
-        await page.waitForFunction(() => {
-            const el = document.getElementById('status');
-            return el && /Shader changes/.test(el.textContent || '');
-        }, { timeout: 8000 });
-        console.log('Reload trigger observed:', await page.textContent('#status'));
+        await page.waitForFunction(() => window.__hotReloadStatuses.some(
+            event => /Shader changes detected, reloading/.test(event.text)
+        ), null, { timeout: 8000 });
+        console.log('Reload trigger observed in status history');
 
         // The reload must compile the NEW body and settle back to Loaded...
         await page.waitForFunction(() => {
+            const events = window.__hotReloadStatuses;
+            const trigger = events.findIndex(event => /Shader changes detected, reloading/.test(event.text));
+            if (trigger < 0 || !events.slice(trigger + 1).some(
+                event => event.className === 'success' && /Loaded/.test(event.text)
+            )) return false;
             const el = document.getElementById('status');
             return el && el.className === 'success' && /Loaded/.test(el.textContent || '');
-        }, { timeout: 30000 });
+        }, null, { timeout: 30000 });
+        if (!shaderGets.some(({ etag, body }) => etag === '"glsl-v2"' &&
+            body.includes('vec3 color = vec3(1.0, 0.0, 0.0);'))) {
+            errors.push('Reload did not fetch the edited GLSL body');
+        }
         console.log('Reloaded:', await page.textContent('#status'));
 
         // ...and stay there (no reload loop).
@@ -181,7 +204,7 @@ function startServer() {
         await page.waitForFunction(() => {
             const el = document.getElementById('status');
             return el && el.className === 'error';
-        }, { timeout: 12000 });
+        }, null, { timeout: 12000 });
         console.log('Compile-error probe observed:', await page.textContent('#status'));
 
         // Restoring a valid shader body must recover to Loaded.
@@ -190,7 +213,7 @@ function startServer() {
         await page.waitForFunction(() => {
             const el = document.getElementById('status');
             return el && el.className === 'success' && /Loaded/.test(el.textContent || '');
-        }, { timeout: 30000 });
+        }, null, { timeout: 30000 });
         expectLoadError = false;
         console.log('Recovered:', await page.textContent('#status'));
 
