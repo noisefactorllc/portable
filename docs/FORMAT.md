@@ -4,6 +4,75 @@
 
 This document defines the complete specification for portable shader effects in the Noisemaker ecosystem.
 
+## Multi-effect workspace envelope
+
+`workspace.mjs` defines workspace version 1, an enclosing JSON format independent
+of the individual effect format version above. Individual effect packages keep
+their original files and definitions. This is a data contract; consumers still
+need compiler and renderer validation before accepting an edited composition.
+
+| Field | Required value or meaning |
+| --- | --- |
+| `format` | `"noisefactor-workspace"` |
+| `version` | `1` |
+| `id` | Stable workspace identity |
+| `revision` | Nonnegative safe integer; starts at 0 |
+| `effects` | Array of `{ id, files }` portable packages |
+| `assets` | Workspace-level encoded file map |
+| `composition` | `{ dsl, effectIds }`: program and authored dependencies |
+
+Each effect carries `definition.json` and at least one GLSL or WGSL shader.
+A complete two-effect fixture is in
+[`fixtures/two-effect-workspace.json`](../fixtures/two-effect-workspace.json).
+Every file entry maps a relative path to `{ "encoding": "utf8", "data": "..." }`
+or `{ "encoding": "base64", "data": "..." }`. Definitions and shaders use UTF-8;
+binary assets use canonical padded base64. File paths cannot be absolute, use
+backslashes, contain control characters or colons, or contain empty, dot,
+parent, or prototype-related segments. Effect file paths are relative to that
+effect's package; workspace asset paths are relative to the workspace asset
+collection. Asset resolution is the consumer's responsibility: this format
+does not rewrite shader source or fetch external resources.
+
+Workspace and effect IDs are stable strings of 1–128 ASCII letters, digits,
+underscores, or hyphens, starting with a letter or digit. IDs do not change when
+display names change. Each effect registers in `user` using its definition's
+`func` (or `name` if `func` is absent); duplicate IDs or function names are
+rejected rather than silently renamed. Parameters retain their declarations
+and defaults in `definition.json`; composition values are expressed in the DSL,
+so there is no second parameter-value map to reconcile.
+
+`composition.effectIds` explicitly lists the authored effect dependencies.
+It must contain unique IDs present in `effects`. Unused authored effects may
+remain in the workspace. Consumers use the Noisemaker compiler to discover DSL
+dependencies and check them against this list; envelope validation alone does
+not claim that the list matches the DSL. Built-in effects are resolved by the
+consumer's pinned Noisemaker version. The DSL must be nonempty. Unknown envelope
+fields or versions are rejected to prevent unsupported data being discarded.
+
+The browser-compatible module exports:
+
+- `parseWorkspace(json)` and `serializeWorkspace(workspace)`: validate and
+  round-trip the complete envelope, preserving effect files and assets.
+- `importSingleEffect(files, { workspaceId, effectId, dsl? })`: wrap a legacy
+  map of UTF-8 file contents at revision 0. It uses `defaultProgram` when no DSL
+  is supplied; packages without a default require explicit DSL. ZIP extraction
+  and binary legacy-file decoding belong to the importer.
+- `exportEffect(workspace, effectId)`: return a detached encoded file map for
+  that individual package. Workspace assets are not implicitly copied into an
+  individual export; a consumer must resolve or reject external dependencies.
+- `replaceEffect(workspace, effectId, files, { expectedRevision })`: produce a
+  detached candidate at the next revision. It preserves the other effects,
+  assets, and composition, rejects a stale revision or changed DSL function
+  identity, and never mutates the original workspace.
+
+The consumer compiles and renders a candidate before committing it to history.
+After asynchronous validation, it compares the current revision again before
+commit. Failure or a revision conflict retains the previous valid workspace.
+Undo and redo restore content through new monotonically increasing revisions;
+they must not reuse an old revision and thereby make a stale result applicable.
+These transaction and history behaviors belong to the consumer, not the file
+codec. A structurally valid file is not a rendered acceptance result.
+
 ---
 
 ## File Structure
