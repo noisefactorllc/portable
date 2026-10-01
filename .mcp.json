@@ -8,7 +8,10 @@
         "SHADE_PROJECT_ROOT": ".",
         "SHADE_VIEWER_ROOT": ".",
         "SHADE_VIEWER_PATH": "/viewer/index.html",
-        "SHADE_GLOBALS_PREFIX": "__portable"
+        "SHADE_GLOBALS_PREFIX": "__portable",
+        "SHADE_DSL_RENDERER_MODULE": "https://shaders.noisedeck.app/1/noisemaker-shaders-core.esm.js",
+        "SHADE_DSL_ASSETS_BASE": "https://shaders.noisedeck.app/1",
+        "SHADE_DSL_USE_BUNDLES": "true"
       }
     }
   }
