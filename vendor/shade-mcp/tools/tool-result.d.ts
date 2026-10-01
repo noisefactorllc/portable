@@ -1,8 +1,12 @@
 export type ToolResult = {
-    content: Array<{
+    content: [{
         type: 'text';
         text: string;
-    }>;
+    }, ...Array<{
+        type: 'image';
+        data: string;
+        mimeType: string;
+    }>];
     isError?: true;
 };
 /**
@@ -13,5 +17,8 @@ export type ToolResult = {
  * text. Whole-call failures are marked; a batch whose entries partly failed is
  * left unmarked, since the per-entry status already carries that detail.
  */
-export declare function toolResult(payload: unknown): ToolResult;
+export declare function toolResult(payload: unknown, images?: Array<{
+    data: string;
+    mimeType: string;
+}>): ToolResult;
 //# sourceMappingURL=tool-result.d.ts.map

@@ -10,6 +10,9 @@ export interface Config {
     timeoutMs: number;
     aiTimeoutMs: number;
     aiModel: string | undefined;
+    dslRendererModule: string;
+    dslAssetsBase: string;
+    dslUseBundles: boolean;
 }
 export declare function getConfig(): Config;
 //# sourceMappingURL=config.d.ts.map
