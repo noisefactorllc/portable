@@ -60,9 +60,9 @@ function startServer() {
             }
         });
 
-        server.listen(0, () => {
+        server.listen(0, '127.0.0.1', () => {
             const port = server.address().port;
-            console.log(`Server running at http://localhost:${port}/`);
+            console.log(`Server running at http://127.0.0.1:${port}/`);
             resolve({ server, port });
         });
     });
@@ -128,7 +128,7 @@ function startServer() {
         });
 
         console.log('Loading viewer...');
-        await page.goto(`http://localhost:${port}/viewer/`, { waitUntil: 'networkidle' });
+        await page.goto(`http://127.0.0.1:${port}/viewer/`, { waitUntil: 'networkidle' });
 
         await page.waitForFunction(() => {
             const el = document.getElementById('status');
