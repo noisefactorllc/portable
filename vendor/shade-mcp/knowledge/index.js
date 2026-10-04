@@ -618,25 +618,33 @@ var INDEX_TTL_MS = 5e3;
 var effectIndex = null;
 var builtAt = 0;
 var building = null;
+var epoch = 0;
+var buildEpoch = 0;
 async function getSharedEffectIndex() {
   if (effectIndex && Date.now() - builtAt < INDEX_TTL_MS) return effectIndex;
-  if (building) return building;
+  if (building && buildEpoch === epoch) return building;
+  const current = epoch;
   building = (async () => {
     const index = new EffectIndex();
     await index.initialize(getConfig().effectsDir);
-    effectIndex = index;
-    builtAt = Date.now();
+    if (epoch === current) {
+      effectIndex = index;
+      builtAt = Date.now();
+    }
     return index;
   })();
+  buildEpoch = current;
+  const promise = building;
   try {
-    return await building;
+    return await promise;
   } finally {
-    building = null;
+    if (building === promise) building = null;
   }
 }
 function invalidateSharedEffectIndex() {
   effectIndex = null;
   builtAt = 0;
+  epoch++;
 }
 
 // src/knowledge/shader-knowledge.ts

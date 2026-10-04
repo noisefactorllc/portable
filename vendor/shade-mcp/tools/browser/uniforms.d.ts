@@ -9,6 +9,7 @@ export declare const testUniformResponsivenessSchema: {
         webgpu: "webgpu";
     }>>;
 };
+export declare const UNIFORM_RESPONSE_THRESHOLD = 0.002;
 export declare function testUniformResponsiveness(session: BrowserSession, effectId: string): Promise<any>;
 export declare function registerTestUniformResponsiveness(server: McpServer): void;
 //# sourceMappingURL=uniforms.d.ts.map
