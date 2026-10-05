@@ -23781,7 +23781,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.3.1";
+var VERSION = "0.3.2";
 
 // src/index.ts
 var config2 = getConfig();
