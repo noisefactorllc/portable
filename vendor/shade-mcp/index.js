@@ -20534,7 +20534,7 @@ var FAIL_STATUSES = /* @__PURE__ */ new Set(["mismatch", "passthrough", "diverge
 function classifyOutcome(entry) {
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return "ok";
   const e = entry;
-  if (e.status === "error" || typeof e.error === "string") return "error";
+  if (e.status === "error" || e.status === void 0 && typeof e.error === "string") return "error";
   if (typeof e.status === "string" && FAIL_STATUSES.has(e.status)) return "fail";
   if (e.meets_target === false) return "fail";
   if (e.status === "warning") return "warning";
@@ -20543,7 +20543,8 @@ function classifyOutcome(entry) {
 }
 function withOutcome(entry) {
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return entry;
-  return { outcome: classifyOutcome(entry), ...entry };
+  const { outcome: _ignored, ...fields } = entry;
+  return { outcome: classifyOutcome(entry), ...fields };
 }
 function toolResult(payload, images = []) {
   let body;
@@ -20856,7 +20857,10 @@ async function renderEffectFrame(session, effectId, options = {}) {
         } else if (backend?.readPixels && backend?.textures) {
           const surf = pipeline.graph?.renderSurface;
           if (surf) {
-            const candidates = ["global_" + surf + "_read"];
+            const candidates = [];
+            const frameRead = pipeline.frameReadTextures?.get?.(surf);
+            if (frameRead) candidates.push(frameRead);
+            candidates.push("global_" + surf + "_read");
             try {
               const nodes = [];
               for (const k of backend.textures.keys()) if (/node_\d+_out/.test(k)) nodes.push(k);
@@ -21369,7 +21373,10 @@ async function testUniformResponsiveness(session, effectId) {
           await backend.device?.queue?.onSubmittedWorkDone?.();
           const surf = pipeline.graph?.renderSurface;
           if (!surf) return null;
-          const candidates = ["global_" + surf + "_read"];
+          const candidates = [];
+          const frameRead = pipeline.frameReadTextures?.get?.(surf);
+          if (frameRead) candidates.push(frameRead);
+          candidates.push("global_" + surf + "_read");
           try {
             const nodes = [];
             for (const k of backend.textures.keys()) if (/node_\d+_out/.test(k)) nodes.push(k);
@@ -21482,7 +21489,7 @@ async function testUniformResponsiveness(session, effectId) {
         if (errorNames.length > 0) problems.push(`could not be measured: ${errorNames.join(", ")}`);
         if (failedNames.length > 0) problems.push(`did not affect output: ${failedNames.join(", ")}`);
         if (problems.length > 0) {
-          status = "error";
+          status = errorNames.length > 0 ? "error" : "fail";
           details = `Uniforms ${problems.join("; ")}`;
         } else {
           status = "ok";
@@ -21511,7 +21518,7 @@ async function testUniformResponsiveness(session, effectId) {
 function registerTestUniformResponsiveness(server2) {
   server2.tool(
     "testUniformResponsiveness",
-    "For each uniform:\n1. Render a baseline.\n2. Change the uniform value.\n3. Compare the output.\nStatus is ok only when at least one uniform was tested and every tested uniform affected output; error when any tested uniform did not respond or could not be measured (details names them); skipped when nothing was testable. Each tested uniform is reported with its test value, luma and max channel deltas against the 0.002 threshold.",
+    "For each uniform:\n1. Render a baseline.\n2. Change the uniform value.\n3. Compare the output.\nStatus is ok only when at least one uniform was tested and every tested uniform affected output; fail when a measured uniform did not affect output, error when any tested uniform could not be measured (details names them); skipped when nothing was testable. Each tested uniform is reported with its test value, luma and max channel deltas against the 0.002 threshold.",
     testUniformResponsivenessSchema,
     async (args) => {
       const config3 = getConfig();
@@ -21741,7 +21748,10 @@ async function captureSurface(session, seed) {
     const surf = p.graph?.renderSurface;
     if (!surf) return null;
     const readSurface = async () => {
-      const candidates = ["global_" + surf + "_read"];
+      const candidates = [];
+      const frameRead = p.frameReadTextures?.get?.(surf);
+      if (frameRead) candidates.push(frameRead);
+      candidates.push("global_" + surf + "_read");
       try {
         const nodes = [];
         for (const k of b.textures.keys()) if (/node_\d+_out/.test(k)) nodes.push(k);
@@ -29731,7 +29741,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.4.1";
+var VERSION = "0.4.2";
 
 // src/server.ts
 function createShadeServer() {
