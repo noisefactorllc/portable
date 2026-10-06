@@ -19797,6 +19797,8 @@ var httpServer = null;
 var refCount = 0;
 var activePort = 0;
 var requestedPort = 0;
+var fixedFallbackCursor = 0;
+var lastReleaseDrain = null;
 var MIME_TYPES = {
   ".html": "text/html",
   ".js": "application/javascript",
@@ -19885,6 +19887,11 @@ async function acquireServer(port, viewerRoot, effectsDir) {
     return getServerUrl();
   }
   requestedPort = port;
+  if (lastReleaseDrain) {
+    const drain = lastReleaseDrain;
+    lastReleaseDrain = null;
+    await drain;
+  }
   const isFlatLayout = existsSync(join(effectsDir, "definition.json")) || existsSync(join(effectsDir, "definition.js"));
   const flatEffectName = isFlatLayout ? basename(effectsDir) : null;
   const route = (req, res) => {
@@ -19932,25 +19939,56 @@ async function acquireServer(port, viewerRoot, effectsDir) {
     }
     serveFile(filePath, res, corsOrigin);
   };
-  httpServer = createServer((req, res) => {
-    try {
-      route(req, res);
-    } catch {
-      if (!res.headersSent) res.writeHead(500);
-      res.end();
-    }
-  });
-  httpServer.on("clientError", (_err, socket) => {
-    if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
-    else socket.destroy();
-  });
-  await new Promise((resolve4, reject) => {
-    httpServer.listen(port, "127.0.0.1", () => {
-      const addr = httpServer.address();
-      activePort = typeof addr === "object" && addr ? addr.port : port;
-      resolve4();
+  const createHttpServer = () => {
+    const server2 = createServer((req, res) => {
+      try {
+        route(req, res);
+      } catch {
+        if (!res.headersSent) res.writeHead(500);
+        res.end();
+      }
     });
-    httpServer.on("error", reject);
+    server2.on("clientError", (_err, socket) => {
+      if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+      else socket.destroy();
+    });
+    return server2;
+  };
+  const FIXED_FALLBACK_PORTS = [43117, 43118, 43119, 43120, 43121, 43122, 43123, 43124, 43125, 43126];
+  const candidates = [];
+  if (port === 0) {
+    const override = Number.parseInt(process.env.NM_TS_PORT ?? "", 10);
+    if (Number.isInteger(override) && override > 0 && override <= 65535) candidates.push(override);
+    candidates.push(0);
+    for (let i = 0; i < FIXED_FALLBACK_PORTS.length; i++) {
+      candidates.push(FIXED_FALLBACK_PORTS[(fixedFallbackCursor + i) % FIXED_FALLBACK_PORTS.length]);
+    }
+    fixedFallbackCursor = (fixedFallbackCursor + 1) % FIXED_FALLBACK_PORTS.length;
+  } else {
+    candidates.push(port);
+  }
+  await new Promise((resolve4, reject) => {
+    const attempt = (index, lastError) => {
+      if (index >= candidates.length) {
+        reject(lastError ?? new Error(`Could not bind the viewer server on any candidate port (${candidates.join(", ")})`));
+        return;
+      }
+      const candidate = candidates[index];
+      const server2 = createHttpServer();
+      const onError = (err) => {
+        server2.close();
+        attempt(index + 1, err);
+      };
+      server2.once("error", onError);
+      server2.listen(candidate, "127.0.0.1", () => {
+        server2.removeListener("error", onError);
+        httpServer = server2;
+        const addr = server2.address();
+        activePort = typeof addr === "object" && addr ? addr.port : candidate;
+        resolve4();
+      });
+    };
+    attempt(0);
   });
   refCount = 1;
   return getServerUrl();
@@ -19959,10 +19997,11 @@ function releaseServer() {
   if (refCount <= 0) return;
   refCount--;
   if (refCount === 0 && httpServer) {
-    httpServer.close();
+    const server2 = httpServer;
     httpServer = null;
     activePort = 0;
     requestedPort = 0;
+    lastReleaseDrain = new Promise((resolve4) => server2.close(() => resolve4()));
   }
 }
 function getServerUrl() {
@@ -20199,7 +20238,11 @@ var BrowserSession = class {
       const launchOptions = getBrowserLaunchOptions(this.options.headless, this.options.backend);
       if (this.options.backend === "webgpu" && swiftshaderEnabled()) {
         const env = swiftshaderVulkanEnv();
-        if (Object.keys(env).length > 0) launchOptions.env = env;
+        if (Object.keys(env).length > 0) {
+          launchOptions.env = Object.fromEntries(
+            Object.entries({ ...process.env, ...env }).filter((entry) => typeof entry[1] === "string")
+          );
+        }
       }
       this.browser = await chromium.launch(launchOptions);
       const viewportSize = process.env.CI ? { width: 256, height: 256 } : { width: 1280, height: 720 };
@@ -23781,7 +23824,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.3.2";
+var VERSION = "0.3.3";
 
 // src/index.ts
 var config2 = getConfig();
