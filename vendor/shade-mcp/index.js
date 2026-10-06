@@ -28549,14 +28549,19 @@ async function checkEffectStructure(effectId) {
     return filename.replace(/\.(glsl|frag|vert|wgsl)$/, "");
   }
   const referencedPrograms = new Set(def.passes.map((p) => p.program));
-  for (const f of glslFiles) {
-    if (!referencedPrograms.has(programName(f))) {
-      issues.unusedFiles.push(`glsl/${f}`);
+  const passReasons = (def.partialReasons || []).filter((r) => r.startsWith("passes"));
+  if (passReasons.length > 0) {
+    issues.unusedFilesUnchecked = `passes are computed at run time: ${passReasons.join("; ")}`;
+  } else {
+    for (const f of glslFiles) {
+      if (!referencedPrograms.has(programName(f))) {
+        issues.unusedFiles.push(`glsl/${f}`);
+      }
     }
-  }
-  for (const f of wgslFiles) {
-    if (!referencedPrograms.has(programName(f))) {
-      issues.unusedFiles.push(`wgsl/${f}`);
+    for (const f of wgslFiles) {
+      if (!referencedPrograms.has(programName(f))) {
+        issues.unusedFiles.push(`wgsl/${f}`);
+      }
     }
   }
   const glslPrograms = new Set(glslFiles.map((f) => programName(f)));
@@ -29726,7 +29731,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.4.0";
+var VERSION = "0.4.1";
 
 // src/server.ts
 function createShadeServer() {
