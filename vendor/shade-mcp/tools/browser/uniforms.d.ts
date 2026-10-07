@@ -10,6 +10,7 @@ export declare const testUniformResponsivenessSchema: {
     }>>;
 };
 export declare const UNIFORM_RESPONSE_THRESHOLD = 0.002;
+export declare const UNIFORM_STRONG_FRACTION_THRESHOLD = 0.0005;
 export declare function testUniformResponsiveness(session: BrowserSession, effectId: string): Promise<any>;
 export declare function registerTestUniformResponsiveness(server: McpServer): void;
 //# sourceMappingURL=uniforms.d.ts.map
