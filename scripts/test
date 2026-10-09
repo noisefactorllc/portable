@@ -1,0 +1,56 @@
+#!/bin/bash
+# Portable repository test entrypoint.
+#
+# The viewer's browser-backed suites (test-workspace, test-viewer,
+# test-params, test-hotreload, test-3d) need an executable Playwright
+# Chromium. Playwright's default browser location is $HOME/.cache/
+# ms-playwright, which on Linux sandboxes is often a noexec tmpfs: downloads
+# succeed but every launch dies with EACCES. This entrypoint probes candidate
+# locations in order, exports PLAYWRIGHT_BROWSERS_PATH for the first one that
+# can actually execute a program, installs the browser there if missing, and
+# then runs the full suite (npm test) — wrapped in xvfb-run on a
+# display-less Linux host, matching the repo's documented Linux workflow.
+#
+# Set PLAYWRIGHT_BROWSERS_PATH to override location selection entirely.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [ ! -d node_modules ]; then
+    npm ci --no-audit --no-fund
+fi
+
+# Executability probe: a +x script only runs on an exec-mounted filesystem.
+can_exec() {
+    local probe="$1/.exec-probe.$$"
+    mkdir -p "$1" 2>/dev/null || return 1
+    printf '#!/bin/sh\n' > "$probe" 2>/dev/null || return 1
+    chmod +x "$probe" 2>/dev/null || { rm -f "$probe"; return 1; }
+    "$probe" 2>/dev/null || { rm -f "$probe"; return 1; }
+    rm -f "$probe"
+}
+
+if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then
+    for candidate in \
+        "${HOME:-}/.cache/ms-playwright" \
+        "${TMPDIR:-/tmp}/ms-playwright" \
+        /var/tmp/ms-playwright \
+        "$PWD/node_modules/.playwright-browsers"; do
+        if [ -n "$candidate" ] && can_exec "$candidate"; then
+            export PLAYWRIGHT_BROWSERS_PATH="$candidate"
+            break
+        fi
+    done
+    if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then
+        echo "No exec-capable location found for Playwright browsers." >&2
+        exit 1
+    fi
+fi
+
+echo "Playwright browsers: ${PLAYWRIGHT_BROWSERS_PATH}"
+npx playwright install chromium
+
+if [ -z "${DISPLAY:-}" ] && command -v xvfb-run >/dev/null 2>&1; then
+    exec xvfb-run -a npm test
+else
+    exec npm test
+fi
