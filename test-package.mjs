@@ -8,7 +8,7 @@
  */
 
 import { spawnSync } from 'child_process';
-import { mkdtemp, mkdir, rm, writeFile, readFile } from 'fs/promises';
+import { mkdtemp, mkdir, rm, chmod, writeFile, readFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -154,6 +154,37 @@ console.log('Testing package-portable.mjs...');
         try { priorContent = await readFile(zipPath, 'utf8'); } catch { priorContent = null; }
         assert(priorContent === 'prior artifact bytes',
             `pre-write failure preserves the existing output file (got ${priorContent === null ? 'deleted file' : JSON.stringify(priorContent)})`);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+}
+
+// 5. An asynchronous output-open failure must preserve an existing
+//    destination: createWriteStream() opens lazily, so the failure arrives
+//    after construction. A pre-existing output file the process cannot open
+//    (mode 000) reproduces that window and distinguishes 'open'-event
+//    tracking from eager flagging.
+{
+    const root = await mkdtemp(join(tmpdir(), 'portable-package-'));
+    try {
+        const effectDir = join(root, 'effect');
+        await mkdir(join(effectDir, 'glsl'), { recursive: true });
+        await writeFile(join(effectDir, 'definition.json'), JSON.stringify({ name: 'T', func: 't' }));
+        await writeFile(join(effectDir, 'glsl/main.glsl'), 'void main() {}');
+        const zipPath = join(root, 'out.zip');
+        await writeFile(zipPath, 'prior artifact bytes');
+        await chmod(zipPath, 0o000);
+        const result = runPackager([effectDir, zipPath]);
+        assert(result.status === 1, `open failure exits 1 (got ${result.status})`);
+        assert(/EACCES|permission denied/i.test(result.stderr || ''),
+            'open failure reports the stream open error');
+        let priorContent = null;
+        try {
+            await chmod(zipPath, 0o644);
+            priorContent = await readFile(zipPath, 'utf8');
+        } catch { priorContent = null; }
+        assert(priorContent === 'prior artifact bytes',
+            `asynchronous open failure preserves the existing destination (got ${priorContent === null ? 'deleted file' : JSON.stringify(priorContent)})`);
     } finally {
         await rm(root, { recursive: true, force: true });
     }

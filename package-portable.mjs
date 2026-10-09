@@ -51,14 +51,15 @@ async function main() {
 
     // Create ZIP
     console.log('  → Creating ZIP archive...');
-    // Only failures after this run opened the destination may clean it up:
-    // a pre-write failure (e.g. a missing effect directory) must leave any
-    // existing output file untouched.
+    // Only failures after this run successfully opened the destination may
+    // clean it up: createWriteStream() opens the file asynchronously, so an
+    // open failure (e.g. a bad output path) can arrive after construction
+    // and must leave any existing output file untouched.
     let outputOpened = false;
     try {
         await new Promise((resolvePromise, reject) => {
             const output = createWriteStream(outputPath);
-            outputOpened = true;
+            output.on('open', () => { outputOpened = true; });
             const archive = new ZipArchive({ zlib: { level: 9 } });
 
             output.on('close', resolvePromise);
