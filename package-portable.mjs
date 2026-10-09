@@ -51,20 +51,34 @@ async function main() {
 
     // Create ZIP
     console.log('  → Creating ZIP archive...');
-    await new Promise((resolvePromise, reject) => {
-        const output = createWriteStream(outputPath);
-        const archive = new ZipArchive({ zlib: { level: 9 } });
+    // Only failures after this run opened the destination may clean it up:
+    // a pre-write failure (e.g. a missing effect directory) must leave any
+    // existing output file untouched.
+    let outputOpened = false;
+    try {
+        await new Promise((resolvePromise, reject) => {
+            const output = createWriteStream(outputPath);
+            outputOpened = true;
+            const archive = new ZipArchive({ zlib: { level: 9 } });
 
-        output.on('close', resolvePromise);
-        // Without this a write failure (e.g. ENOSPC) escapes as an unhandled
-        // stream error instead of the clean failure path below.
-        output.on('error', reject);
-        archive.on('error', reject);
+            output.on('close', resolvePromise);
+            // Without this a write failure (e.g. ENOSPC) escapes as an unhandled
+            // stream error instead of the clean failure path below.
+            output.on('error', reject);
+            archive.on('error', reject);
 
-        archive.pipe(output);
-        archive.directory(effectPath, false, skipJunk); // false = don't include parent dir
-        archive.finalize().catch(reject);
-    });
+            archive.pipe(output);
+            archive.directory(effectPath, false, skipJunk); // false = don't include parent dir
+            archive.finalize().catch(reject);
+        });
+    } catch (err) {
+        if (outputOpened) {
+            // Never leave a truncated ZIP behind: importers would accept a
+            // partial archive only to fail later on its missing entries.
+            await rm(outputPath, { force: true }).catch(() => {});
+        }
+        throw err;
+    }
 
     // Show result
     const fileSize = await getFileSize(outputPath);
@@ -74,10 +88,7 @@ async function main() {
     console.log(`To import: Open Noisedeck → file → import effect from zip → Select ${outputPath}`);
 }
 
-main().catch(async err => {
-    // Never leave a truncated ZIP behind: importers would accept a partial
-    // archive only to fail later on its missing entries.
-    await rm(outputPath, { force: true }).catch(() => {});
+main().catch(err => {
     console.error('Error:', err.message);
     process.exit(1);
 });

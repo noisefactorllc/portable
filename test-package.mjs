@@ -73,18 +73,26 @@ async function writeTempEffect(root) {
 
 console.log('Testing package-portable.mjs...');
 
-// 1. Default invocation: packages ./effect into ./effect.zip.
+// 1. Default invocation: packages ./effect into ./effect.zip. A previously
+//    packaged effect.zip is preserved and put back, so running the suite
+//    never destroys an existing artifact.
 {
+    const zipPath = join(__dirname, 'effect.zip');
+    let prior = null;
+    try { prior = await readFile(zipPath); } catch { prior = null; }
     const result = runPackager([]);
     assert(result.status === 0, `default packaging exits 0 (got ${result.status}: ${result.stderr?.trim()})`);
-    const zipPath = join(__dirname, 'effect.zip');
     let names = [];
     try {
         names = zipEntryNames(await readFile(zipPath));
     } catch (err) {
         assert(false, `default package readable: ${err.message}`);
     } finally {
-        await rm(zipPath, { force: true });
+        if (prior === null) {
+            await rm(zipPath, { force: true });
+        } else {
+            await writeFile(zipPath, prior);
+        }
     }
     for (const expected of ['definition.json', 'help.md',
         'glsl/gradientSweep.glsl', 'wgsl/gradientSweep.wgsl']) {
@@ -127,6 +135,25 @@ console.log('Testing package-portable.mjs...');
         let exists = true;
         try { await readFile(zipPath); } catch { exists = false; }
         assert(!exists, 'no partial output is left behind after a failed run');
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+}
+
+// 4. A pre-write failure must not delete a destination that already exists:
+//    packaging onto a previous artifact preserves it when the effect
+//    directory is missing.
+{
+    const root = await mkdtemp(join(tmpdir(), 'portable-package-'));
+    try {
+        const zipPath = join(root, 'out.zip');
+        await writeFile(zipPath, 'prior artifact bytes');
+        const result = runPackager([join(root, 'missing'), zipPath]);
+        assert(result.status === 1, `pre-write failure exits 1 (got ${result.status})`);
+        let priorContent = null;
+        try { priorContent = await readFile(zipPath, 'utf8'); } catch { priorContent = null; }
+        assert(priorContent === 'prior artifact bytes',
+            `pre-write failure preserves the existing output file (got ${priorContent === null ? 'deleted file' : JSON.stringify(priorContent)})`);
     } finally {
         await rm(root, { recursive: true, force: true });
     }
