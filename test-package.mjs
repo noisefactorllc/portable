@@ -8,7 +8,7 @@
  */
 
 import { spawnSync } from 'child_process';
-import { mkdtemp, mkdir, rm, chmod, writeFile, readFile } from 'fs/promises';
+import { mkdtemp, mkdir, rm, chmod, writeFile, readFile, copyFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -187,6 +187,61 @@ console.log('Testing package-portable.mjs...');
             `asynchronous open failure preserves the existing destination (got ${priorContent === null ? 'deleted file' : JSON.stringify(priorContent)})`);
     } finally {
         await rm(root, { recursive: true, force: true });
+    }
+}
+
+// 6. The bash packager must agree with the Node path: same contents and
+//    exclusions on success, and a failed run preserves an existing output
+//    file instead of destroying it first. Skipped, loudly, only where the
+//    zip/unzip tools the script drives are not installed.
+{
+    const tools = spawnSync('bash', ['-c', 'command -v zip && command -v unzip'],
+        { encoding: 'utf8' });
+    if (tools.status !== 0) {
+        console.log('SKIP: package-portable.sh checks (zip/unzip not installed)');
+    } else {
+        // Success: same entries and junk exclusions as the Node packager.
+        {
+            const root = await mkdtemp(join(tmpdir(), 'portable-package-sh-'));
+            try {
+                await copyFile(join(__dirname, 'package-portable.sh'), join(root, 'package-portable.sh'));
+                const effectDir = join(root, 'effect');
+                await writeTempEffect(effectDir);
+                const result = spawnSync('bash', ['package-portable.sh'],
+                    { cwd: root, encoding: 'utf8' });
+                assert(result.status === 0, `bash packaging exits 0 (got ${result.status}: ${result.stderr?.trim()})`);
+                const names = zipEntryNames(await readFile(join(root, 'effect.zip')));
+                assert(names.includes('definition.json'), 'bash package contains definition.json');
+                assert(names.includes('glsl/main.glsl'), 'bash package contains glsl/main.glsl');
+                assert(!names.some(name => name.includes('.DS_Store') || name.includes('__MACOSX')),
+                    'bash package excludes .DS_Store and __MACOSX');
+                let leftover = true;
+                try { await readFile(join(root, '.effect.zip.partial')); } catch { leftover = false; }
+                assert(!leftover, 'bash packaging leaves no temporary file behind');
+            } finally {
+                await rm(root, { recursive: true, force: true });
+            }
+        }
+        // Failure: the previous artifact must survive a run that cannot package.
+        {
+            const root = await mkdtemp(join(tmpdir(), 'portable-package-sh-'));
+            try {
+                await copyFile(join(__dirname, 'package-portable.sh'), join(root, 'package-portable.sh'));
+                const zipPath = join(root, 'effect.zip');
+                await writeFile(zipPath, 'prior artifact bytes');
+                const result = spawnSync('bash', ['package-portable.sh'],
+                    { cwd: root, encoding: 'utf8' });
+                assert(result.status !== 0, `bash packaging without an effect dir exits nonzero (got ${result.status})`);
+                const priorContent = await readFile(zipPath, 'utf8');
+                assert(priorContent === 'prior artifact bytes',
+                    `bash failure preserves the existing output file (got ${JSON.stringify(priorContent)})`);
+                let leftover = true;
+                try { await readFile(join(root, '.effect.zip.partial')); } catch { leftover = false; }
+                assert(!leftover, 'bash failure leaves no temporary file behind');
+            } finally {
+                await rm(root, { recursive: true, force: true });
+            }
+        }
     }
 }
 

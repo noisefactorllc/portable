@@ -9,18 +9,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 OUTPUT_FILE="effect.zip"
-TEMP_DIR="effect"
+TEMP_FILE=".effect.zip.partial"
 
 echo "Packaging effect..."
 
-# Clean up any existing output
-rm -f "$OUTPUT_FILE"
-
-# Create ZIP directly from effect directory
+# Archive into a temporary file and replace the output only after a
+# successful run, so a failure (missing effect directory, missing zip,
+# interrupted write) preserves an existing effect.zip instead of destroying
+# it — matching package-portable.mjs.
 echo "  → Creating ZIP archive..."
+rm -f "$TEMP_FILE"
+trap 'rm -f "$TEMP_FILE"' EXIT
+
 cd effect
-zip -r "../$OUTPUT_FILE" . -x "*.DS_Store" -x "__MACOSX/*"
+zip -r "../$TEMP_FILE" . -x "*.DS_Store" -x "__MACOSX/*"
 cd ..
+mv "$TEMP_FILE" "$OUTPUT_FILE"
+trap - EXIT
 
 # Show result
 FILE_SIZE=$(du -h "$OUTPUT_FILE" | cut -f1)
