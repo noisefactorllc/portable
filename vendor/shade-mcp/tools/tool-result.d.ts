@@ -45,10 +45,19 @@ export declare function toolResult(payload: unknown, images?: Array<{
     mimeType: string;
 }>): ToolResult;
 /**
- * Routes every tool registered on `server` through the envelope, including
- * errors thrown before a handler reaches its own per-effect try block (for
- * example an unresolvable effect selector). Without this the MCP SDK turns
- * such a throw into a bare-text error a client cannot parse as JSON.
+ * Routes every tool result on `server` through the envelope, so a client can
+ * parse every result text as JSON with an `outcome`:
+ *
+ * - errors thrown before a handler reaches its own per-effect try block (for
+ *   example an unresolvable effect selector);
+ * - calls the MCP SDK rejects before any handler runs: an argument that fails
+ *   the tool's input schema, or an unknown tool.
+ *
+ * Without this the SDK turns both into bare-text errors. Apply it before
+ * registering any tool: the SDK installs its `tools/call` handler on the
+ * first registration, and that is where the SDK's own errors are wrapped.
+ * This module does not import the SDK, because the vendored harness bundles
+ * it (scripts/check-dist-externals.mjs).
  */
 export declare function guardToolErrors<S extends {
     tool: (...args: any[]) => any;
