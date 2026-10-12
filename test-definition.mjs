@@ -55,8 +55,8 @@ if (def.defaultProgram !== undefined) {
     assert(typeof def.defaultProgram === 'string' && def.defaultProgram.trim().length > 0,
         '"defaultProgram" is a non-empty DSL string');
 }
-// Noisemaker retired parameter aliases. Its registerEffect throws for a
-// definition that declares the field, even an empty one.
+// Noisemaker retired parameter aliases. CanvasRenderer.registerPortableEffect
+// throws for a definition that declares the field, even an empty one.
 if (def.paramAliases !== undefined) {
     assert(false, 'paramAliases is retired: use the canonical parameter names in the program');
 }
