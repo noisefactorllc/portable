@@ -173,7 +173,6 @@ At least one of `name` or `func` must be provided. If `func` is omitted, the `na
 | `passes` | array | auto | Rendering pass configuration |
 | `textures` | object | `{}` | Internal texture definitions |
 | `defaultProgram` | string | | Example DSL program for this effect |
-| `paramAliases` | object | | Legacy parameter names mapped to current parameter names |
 | `outputTex3d` | string/null | | Internal volume atlas exposed to the next effect, or `inputTex3d` for passthrough; legacy `null` means absent |
 | `outputGeo` | string/null | | Internal geometry texture exposed to the next effect, or `inputGeo` for passthrough; legacy `null` means absent |
 | `uniformLayout` | object/array | | Explicit WGSL uniform-buffer field layout, when required by the shader |
@@ -503,8 +502,7 @@ const instance = new Effect({
     outputGeo: effectData.outputGeo,
     uniformLayout: effectData.uniformLayout,
     uniformLayouts: effectData.uniformLayouts,
-    defaultProgram: effectData.defaultProgram,
-    paramAliases: effectData.paramAliases
+    defaultProgram: effectData.defaultProgram
 })
 instance.shaders = effectData.shaders  // attached after construction
 const pipelineInputs = ['inputTex', 'inputTex3d', 'inputGeo', 'src',
@@ -523,8 +521,8 @@ The `shaders` object is attached after construction because the `Effect`
 constructor does not accept it as config — it's runtime data the pipeline
 reads directly off the registered instance.
 
-Use the runtime registration method to retain parameter aliases, uniform names,
-and sanitized choice names. Consumers that require namespace-only registry
+Use the runtime registration method to retain uniform names and sanitized
+choice names. Consumers that require namespace-only registry
 entries must also preserve any existing bare-name entry around this call, as
 Foundry does.
 

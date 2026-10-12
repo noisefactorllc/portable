@@ -557,6 +557,11 @@
             try {
                 effectSteps = [];
                 effectDef = await loadEffectDefinition();
+                // Noisemaker retired parameter aliases; every consumer app
+                // refuses to register a package that declares them.
+                if (effectDef.paramAliases !== undefined) {
+                    throw new Error('paramAliases is retired: use the canonical parameter names in the program');
+                }
                 detectBackends(effectDef);
                 if (!renderer || rendererBackend !== currentBackend) await initRenderer();
 
@@ -583,13 +588,12 @@
                     outputGeo: effectDef.outputGeo,
                     uniformLayout: effectDef.uniformLayout,
                     uniformLayouts: effectDef.uniformLayouts,
-                    paramAliases: effectDef.paramAliases,
                     defaultProgram: effectDef.defaultProgram
                 });
                 instance.shaders = effectDef.shaders || {};
                 instance.starter = isStarter;
                 
-                // Use the same op, alias, and choice registration as consumer apps.
+                // Use the same op, uniform, and choice registration as consumer apps.
                 const choices = renderer.registerEffectWithRuntime({ namespace, name, instance });
                 await mergeIntoEnums(choices);
                 if (isStarter) registerStarterOps([opName]);

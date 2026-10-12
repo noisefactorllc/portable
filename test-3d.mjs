@@ -139,22 +139,43 @@ try {
     await single.close();
     console.log('PASS single-language startup and backend reconciliation after package reload');
 
+    // Noisemaker retired parameter aliases. The otherwise valid block package
+    // must fail to load, before registration, once it declares the field.
+    const retired = await browser.newPage({ viewport: { width: 384, height: 384 } });
+    retired.on('pageerror', e => errors.push(e.message));
+    let retiredAliases;
+    await retired.route('**/examples/portableBlock3d/definition.json', route =>
+        route.fulfill({ json: { ...def, paramAliases: retiredAliases } }));
+    for (retiredAliases of [{ legacySize: 'volumeSize' }, {}, null]) {
+        await retired.goto(`http://127.0.0.1:${server.address().port}/viewer/?effect=../examples/portableBlock3d/`);
+        await retired.waitForFunction(() => ['success', 'error'].includes(document.querySelector('#status').className));
+        const label = `paramAliases ${JSON.stringify(retiredAliases)}`;
+        assert.equal(await retired.locator('#status').getAttribute('class'), 'error', `${label} is rejected`);
+        assert.equal(await retired.locator('#status').textContent(),
+            'paramAliases is retired: use the canonical parameter names in the program', `${label} names the canonical-name fix`);
+        assert.equal(await retired.evaluate(async () =>
+            (await import('https://shaders.noisedeck.app/1/noisemaker-shaders-core.esm.js')).getEffect('user.portableBlock3d') === undefined),
+        true, `${label} registers no effect`);
+        assert.equal(await retired.evaluate(() => window.__portableCanvasRenderer?.pipeline ?? null), null, `${label} compiles no program`);
+    }
+    await retired.close();
+    console.log('PASS packages that declare retired paramAliases are rejected');
+
     // Editing a Portable parameter must not overwrite a same-named uniform
     // in a built-in effect. A threshold of 1 would hide every block voxel.
     const scoped = await browser.newPage({ viewport: { width: 384, height: 384 } });
     scoped.on('pageerror', e => errors.push(e.message));
     const scopedDef = { ...def,
-        paramAliases: { legacyCutoff: 'cutoff' },
         globals: { ...def.globals,
             cutoff: { type: 'float', default: 0.4, min: 0, max: 1, uniform: 'threshold' },
             mode: { type: 'int', default: 0, uniform: 'mode', choices: { 'soft tint': 0, 'strong tint': 1 } } },
-        defaultProgram: 'search user, render\nportableBlock3d(volumeSize: 16, legacyCutoff: 0.2, mode: strongTint).render3d(threshold: 0.7, filtering: 1, orbitSpeed: 0).write(o0)\nrender(o0)' };
+        defaultProgram: 'search user, render\nportableBlock3d(volumeSize: 16, cutoff: 0.2, mode: strongTint).render3d(threshold: 0.7, filtering: 1, orbitSpeed: 0).write(o0)\nrender(o0)' };
     await scoped.route('**/examples/portableBlock3d/definition.json', route =>
         route.fulfill({ json: scopedDef }));
     await scoped.goto(`http://127.0.0.1:${server.address().port}/viewer/?effect=../examples/portableBlock3d/`);
     await scoped.waitForFunction(() => ['success', 'error'].includes(document.querySelector('#status').className));
     assert.equal(await scoped.locator('#status').getAttribute('class'), 'success', await scoped.locator('#status').textContent());
-    assert.equal(await scoped.locator('input[data-param="cutoff"]').inputValue(), '0.2', 'legacy parameter aliases compile to the canonical control');
+    assert.equal(await scoped.locator('input[data-param="cutoff"]').inputValue(), '0.2', 'the program value of a canonical parameter compiles to its control');
     assert.equal(await scoped.locator('#params select').inputValue(), '1', 'sanitized choice names compile to their numeric value');
     const editScoped = (name, value) => scoped.locator(`input[data-param="${name}"]`).evaluate((input, next) => {
         input.value = String(next);

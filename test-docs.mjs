@@ -37,6 +37,7 @@ const DEPRECATED_PATTERNS = [
     { pattern: /uniform\s+vec4\s+mouse/g, message: 'declares mouse uniform (not implemented)' },
     { pattern: / -- /g, message: 'contains double-dash separator' },
     { pattern: /dsl\.txt/g, message: 'references dsl.txt (use defaultProgram in definition.json instead)' },
+    { pattern: /paramAliases/g, message: 'documents retired paramAliases (programs use the canonical parameter names)' },
 ]
 
 // =========================================================================
@@ -158,6 +159,10 @@ function validateDefinitionJson(json, label) {
             }
         }
     }
+
+    // Noisemaker retired parameter aliases; registration rejects the field.
+    check(obj.paramAliases === undefined,
+        `example does not declare retired paramAliases (${label})`)
 
     // Explicit WGSL buffer layouts are separate from parameter UI categories.
     if (obj.uniformLayout) {

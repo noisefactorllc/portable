@@ -15,7 +15,7 @@ try {
         textures: { atlas: { width: 16, height: 256, format: 'rgba16f' } },
         passes: [{ name: 'fill', program: 'main', inputs: {}, outputs: { color: 'atlas' } }],
         outputTex3d: 'atlas' };
-    for (const [label, patch, expected] of [
+    for (const [label, patch, expected, message] of [
         ['valid volume', {}, 0],
         ['legacy 2D null outputs', { outputTex3d: null, outputGeo: null }, 0],
         ['missing volume output', { outputTex3d: 'missing' }, 1],
@@ -28,11 +28,16 @@ try {
         ...['oops%', '0%', { scale: 0 }, { screenDivide: '' }, { param: 'size', multiply: 0 }]
             .map(width => [`invalid texture dimension ${JSON.stringify(width)}`, { textures: { atlas: { width } } }, 1]),
         ['input volume passthrough', { starter: false, outputTex3d: 'inputTex3d', passes: [{ name: 'filter', program: 'main', inputs: { volume: 'inputTex3d' }, outputs: { color: 'atlas' } }] }, 0],
-        ['geometry passthrough without a sampler', { starter: false, outputGeo: 'inputGeo', passes: [{ name: 'filter', program: 'main', inputs: { volume: 'inputTex3d' }, outputs: { color: 'atlas' } }] }, 0]
+        ['geometry passthrough without a sampler', { starter: false, outputGeo: 'inputGeo', passes: [{ name: 'filter', program: 'main', inputs: { volume: 'inputTex3d' }, outputs: { color: 'atlas' } }] }, 0],
+        // Noisemaker retired parameter aliases; registration rejects the field.
+        ...[{ legacySize: 'volumeSize' }, {}, null].map(paramAliases =>
+            [`retired paramAliases ${JSON.stringify(paramAliases)}`, { paramAliases }, 1,
+                /FAIL: paramAliases is retired: use the canonical parameter names in the program/])
     ]) {
         await writeFile(join(dir, 'definition.json'), JSON.stringify({ ...base, ...patch }));
         const run = spawnSync(process.execPath, [validator, dir], { encoding: 'utf8', timeout: 10000 });
         assert.equal(run.status, expected, `${label}: ${run.stdout}${run.stderr}`);
+        if (message) assert.match(run.stderr, message, `${label}: ${run.stdout}${run.stderr}`);
         console.log(`PASS ${label}`);
     }
 } finally { await rm(dir, { recursive: true, force: true }); }
