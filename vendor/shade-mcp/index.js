@@ -30274,7 +30274,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.4.11";
+var VERSION = "0.4.12";
 
 // src/server.ts
 function createShadeServer() {
