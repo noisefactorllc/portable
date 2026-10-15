@@ -20223,6 +20223,7 @@ var BrowserSession = class {
     this.timeoutMs = opts.timeoutMs ?? config3.timeoutMs;
     this.options = {
       backend: opts.backend,
+      webgpuCapable: opts.webgpuCapable ?? false,
       blankPage: opts.blankPage ?? false,
       // Headless by default: a visible window on every tool call is noise, and
       // launching headed fails outright wherever there is no display. Opt back
@@ -20240,8 +20241,9 @@ var BrowserSession = class {
     try {
       this.baseUrl = await acquireServer(this.options.viewerPort, this.options.viewerRoot, this.options.effectsDir);
       this._serverAcquired = true;
-      const launchOptions = getBrowserLaunchOptions(this.options.headless, this.options.backend);
-      if (this.options.backend === "webgpu" && swiftshaderEnabled()) {
+      const launchBackend = this.options.webgpuCapable && this.options.backend !== "webgpu" ? "webgpu" : this.options.backend;
+      const launchOptions = getBrowserLaunchOptions(this.options.headless, launchBackend);
+      if (launchBackend === "webgpu" && swiftshaderEnabled()) {
         const env = swiftshaderVulkanEnv();
         if (Object.keys(env).length > 0) {
           launchOptions.env = Object.fromEntries(
@@ -22476,7 +22478,7 @@ function registerTestPixelParity(server2) {
     async (args) => {
       const config3 = getConfig();
       const effectIds = resolveEffectIds(args, config3.effectsDir);
-      const session = new BrowserSession({ backend: "webgl2" });
+      const session = new BrowserSession({ backend: "webgl2", webgpuCapable: true });
       try {
         await session.setup();
         const results = [];
@@ -30274,7 +30276,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.4.12";
+var VERSION = "0.4.13";
 
 // src/server.ts
 function createShadeServer() {
