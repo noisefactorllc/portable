@@ -2,7 +2,7 @@ import { ShaderKnowledgeDB } from './vector-db.js';
 import type { KnowledgeDocument, SearchResult } from './vector-db.js';
 /**
  * Get the shader knowledge database singleton.
- * Initializes from curated knowledge on first call.
+ * Initializes from the curated knowledge and the shader-craft references on first call.
  */
 export declare function getShaderKnowledgeDB(): ShaderKnowledgeDB;
 /**
