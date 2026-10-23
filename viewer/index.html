@@ -248,8 +248,14 @@
         const shaderModified = new Map();
         const shaderHeadSeen = new Set();
         // A package remains a directory containing definition.json and shaders.
-        const effectUrl = new URL(new URLSearchParams(location.search).get('effect') || '../effect/', location.href);
+        let effectUrl = new URL(new URLSearchParams(location.search).get('effect') || '../effect/', location.href);
         if (!effectUrl.pathname.endsWith('/')) effectUrl.pathname += '/';
+        // The id shade-mcp knows this effect by: its directory name until the
+        // harness selects one by id.
+        let currentEffectId = effectUrl.pathname.split('/').filter(Boolean).pop() || 'effect';
+        // Bumped after every successful compile, so the harness can tell a
+        // fresh build from the previous one.
+        let pipelineGeneration = 0;
 
         let canvas = document.getElementById('canvas');
         const statusEl = document.getElementById('status');
@@ -636,6 +642,8 @@
                 
                 renderer.start();
                 setStatus(`Loaded: user.${effectDef.func} (${currentBackend === 'wgsl' ? 'WebGPU' : 'WebGL'})`, 'success');
+                pipelineGeneration++;
+                return { ok: true };
             } catch (err) {
                 let errorMsg = 'Unknown error';
                 if (err && typeof err === 'object') {
@@ -651,6 +659,7 @@
                 }
                 setStatus(errorMsg, 'error');
                 console.error('Effect load error:', errorMsg);
+                return { error: errorMsg };
             }
         }
 
@@ -826,6 +835,41 @@
                     get: () => renderer.pipeline?.frameIndex ?? 0,
                     configurable: true
                 });
+                // The harness reads the effect's id and its parameter specs.
+                // No namespace or name here: the harness would read those as
+                // the id.
+                Object.defineProperty(window, '__portableCurrentEffect', {
+                    get: () => ({ id: currentEffectId, instance: { globals: effectDef?.globals || {} } }),
+                    configurable: true
+                });
+                Object.defineProperty(window, '__portablePipelineGeneration', {
+                    get: () => pipelineGeneration,
+                    configurable: true
+                });
+                // shade-mcp selects an effect by id and the URL its server
+                // serves the effect directory at, and switches backends here so
+                // the effect recompiles on the new one. Both resolve when the
+                // compile finishes, with { ok } or { error }.
+                window.__portableSelectEffect = (id, options = {}) => compileForHarness(() => {
+                    const url = new URL(options.url || `../${id}/`, location.href);
+                    if (!url.pathname.endsWith('/')) url.pathname += '/';
+                    if (url.href !== effectUrl.href) {
+                        effectUrl = url;
+                        resetEffectState();
+                    }
+                    currentEffectId = id;
+                });
+                window.__portableSetBackend = async (backend) => {
+                    const requested = backend === 'wgsl' ? 'wgsl' : 'glsl';
+                    const result = await compileForHarness(() => {
+                        currentBackend = requested;
+                        document.querySelectorAll('input[name="backend"]').forEach(r => { r.checked = r.value === requested; });
+                    });
+                    if (currentBackend !== requested) {
+                        throw new Error(`This effect has no ${requested === 'wgsl' ? 'WGSL' : 'GLSL'} shader for every pass`);
+                    }
+                    return result;
+                };
 
                 // Backend toggle event listeners
                 document.querySelectorAll('input[name="backend"]').forEach(radio => {
@@ -843,6 +887,37 @@
                 setStatus(`Init failed: ${err.message}`, 'error');
                 console.error(err);
             }
+        }
+
+        // Forget the previous effect's edits and file stamps when the harness
+        // selects a different effect directory.
+        function resetEffectState() {
+            effectDef = null;
+            paramValues = {};
+            editedParams.clear();
+            effectSteps = [];
+            lastModified = null;
+            definitionHeadSeen = false;
+            shaderModified.clear();
+            shaderHeadSeen.clear();
+        }
+
+        // Harness compiles run one at a time and pause hot-reload polling,
+        // which would otherwise compile the same files concurrently.
+        let harnessCompile = Promise.resolve();
+        function compileForHarness(prepare) {
+            const run = harnessCompile.then(async () => {
+                while (pollReloadActive) await new Promise(resolve => setTimeout(resolve, 50));
+                pollReloadActive = true;
+                try {
+                    prepare();
+                    return await compileAndRun();
+                } finally {
+                    pollReloadActive = false;
+                }
+            });
+            harnessCompile = run.catch(() => {});
+            return run;
         }
 
         // Reload button
