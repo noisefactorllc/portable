@@ -169,12 +169,17 @@ out vec4 fragColor;
 
 #define TAU 6.28318530718
 
+// Etienne Jacob's periodic value: one smooth rise and fall per loop, offset by v
+float periodicValue(float t, float v) {
+    return (sin(mod(t - v, 1.0) * TAU) + 1.0) * 0.5;
+}
+
 void main() {
     vec2 uv = gl_FragCoord.xy / resolution;
 
-    // Rotate the gradient direction over time
-    // time loops 0→1, so multiply by TAU for a full rotation per loop
-    float angle = time * TAU * speed;
+    // Rotate the gradient direction out and back over each loop
+    // time loops 0→1 and the periodic value ends where it starts, so any speed loops cleanly
+    float angle = periodicValue(time, 0.25) * TAU * speed;
     vec2 dir = vec2(cos(angle), sin(angle));
 
     // Project UV onto the rotating direction

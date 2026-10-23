@@ -4,13 +4,18 @@
 
 const TAU: f32 = 6.28318530718;
 
+// Etienne Jacob's periodic value: one smooth rise and fall per loop, offset by v
+fn periodicValue(t: f32, v: f32) -> f32 {
+    return (sin(((t - v) % 1.0) * TAU) + 1.0) * 0.5;
+}
+
 @fragment
 fn main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     let uv = vec2<f32>(position.x, resolution.y - position.y) / resolution;
 
-    // Rotate the gradient direction over time
-    // time loops 0→1, so multiply by TAU for a full rotation per loop
-    let angle = time * TAU * speed;
+    // Rotate the gradient direction out and back over each loop
+    // time loops 0→1 and the periodic value ends where it starts, so any speed loops cleanly
+    let angle = periodicValue(time, 0.25) * TAU * speed;
     let dir = vec2<f32>(cos(angle), sin(angle));
 
     // Project UV onto the rotating direction
