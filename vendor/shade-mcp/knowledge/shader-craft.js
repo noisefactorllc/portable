@@ -8844,7 +8844,23 @@ var SHADER_CRAFT_CREDITS = {
 };
 
 // src/knowledge/shader-craft/bundler.ts
-var CREDIT_BLOCK = /\/\* shader-craft credits\n[\s\S]*?\*\//;
+var CREDIT_OPEN = "/* shader-craft credits\n";
+var INCLUDED_LABEL = "Included symbols: ";
+function findCreditBlock(text) {
+  const start = text.indexOf(CREDIT_OPEN);
+  if (start < 0) return void 0;
+  const close = text.indexOf("*/", start + CREDIT_OPEN.length);
+  return close < 0 ? void 0 : { start, end: close + 2 };
+}
+function includedSymbolIds(block) {
+  for (let at = block.indexOf(INCLUDED_LABEL); at >= 0; at = block.indexOf(INCLUDED_LABEL, at + 1)) {
+    const lineEnd = block.indexOf("\n", at);
+    const rest = block.slice(at + INCLUDED_LABEL.length, lineEnd < 0 ? block.length : lineEnd);
+    const close = rest.lastIndexOf("]");
+    if (rest.startsWith("[") && close > 0) return JSON.parse(rest.slice(0, close + 1));
+  }
+  return [];
+}
 function bundleShaderSource(source, language) {
   const tokens = tokenize(source, language), items = scanTopLevel(source, language, tokens);
   const byId = new Map(SHADER_CRAFT_LIBRARY.map((e) => [e.id, e]));
@@ -8908,8 +8924,8 @@ function bundleShaderSource(source, language) {
     throw new Error("Shader-craft requires ZERO initialization in the WGSL entry point: ZERO = min(i32(frame), 0); use the program frame uniform.");
   }
   const credits = [...new Set(added.flatMap((id) => byId.get(id).credits))];
-  const oldBlock = CREDIT_BLOCK.exec(source);
-  const oldIds = oldBlock ? JSON.parse(/Included symbols: (\[[^\n]*\])/.exec(oldBlock[0])?.[1] ?? "[]") : [];
+  const oldBlock = findCreditBlock(source);
+  const oldIds = oldBlock ? includedSymbolIds(source.slice(oldBlock.start, oldBlock.end)) : [];
   const allIds = SHADER_CRAFT_LIBRARY.filter((e) => oldIds.includes(e.id) || required.has(e.id)).map((e) => e.id);
   const allCredits = new Set(allIds.flatMap((id) => byId.get(id).credits));
   const header = `/* shader-craft credits
@@ -8946,7 +8962,8 @@ Included symbols: ${JSON.stringify(allIds)}
   const prototype = callerPrototypes.join("\n") + (callerPrototypes.length ? "\n\n" : "") + (language === "glsl" && requires.has("map") && !items.some((i) => i.kind === "prototype" && i.name === "map" && i.start < cut) ? "vec2 map(vec3 p);\n\n" : "");
   const library = added.map((id) => getShaderCraftSymbolSource(id, language)).join("\n\n");
   let result = source.slice(0, cut) + "\n" + (oldBlock ? "" : header + "\n\n") + prototype + library + "\n\n" + source.slice(cut);
-  if (oldBlock) result = result.replace(CREDIT_BLOCK, header);
+  const merged = oldBlock && findCreditBlock(result);
+  if (merged) result = result.slice(0, merged.start) + header + result.slice(merged.end);
   return { source: result, added, credits };
 }
 

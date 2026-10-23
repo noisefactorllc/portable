@@ -1,7 +1,7 @@
 // src/knowledge/effect-index.ts
 import { readdir, stat } from "fs/promises";
 import { existsSync as existsSync2 } from "fs";
-import { join as join2 } from "path";
+import { basename, join as join2 } from "path";
 
 // src/formats/index.ts
 import { existsSync, readFileSync as readFileSync2 } from "fs";
@@ -6054,6 +6054,16 @@ var EffectIndex = class {
   async initialize(effectsDir) {
     if (this.initialized) return;
     if (!existsSync2(effectsDir)) return;
+    if (existsSync2(join2(effectsDir, "definition.json")) || existsSync2(join2(effectsDir, "definition.js"))) {
+      const id = basename(effectsDir) || "effect";
+      try {
+        this.effects.set(id, loadEffectDefinition(effectsDir));
+      } catch (err) {
+        console.warn(`[shade-mcp] skipping unparseable effect ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      this.initialized = true;
+      return;
+    }
     const entries2 = await readdir(effectsDir);
     for (const ns of entries2) {
       const nsDir = join2(effectsDir, ns);
@@ -17283,7 +17293,23 @@ function literalSmoothsteps(source2, language = "glsl") {
 }
 
 // src/knowledge/shader-craft/bundler.ts
-var CREDIT_BLOCK = /\/\* shader-craft credits\n[\s\S]*?\*\//;
+var CREDIT_OPEN = "/* shader-craft credits\n";
+var INCLUDED_LABEL = "Included symbols: ";
+function findCreditBlock(text) {
+  const start = text.indexOf(CREDIT_OPEN);
+  if (start < 0) return void 0;
+  const close = text.indexOf("*/", start + CREDIT_OPEN.length);
+  return close < 0 ? void 0 : { start, end: close + 2 };
+}
+function includedSymbolIds(block) {
+  for (let at2 = block.indexOf(INCLUDED_LABEL); at2 >= 0; at2 = block.indexOf(INCLUDED_LABEL, at2 + 1)) {
+    const lineEnd = block.indexOf("\n", at2);
+    const rest = block.slice(at2 + INCLUDED_LABEL.length, lineEnd < 0 ? block.length : lineEnd);
+    const close = rest.lastIndexOf("]");
+    if (rest.startsWith("[") && close > 0) return JSON.parse(rest.slice(0, close + 1));
+  }
+  return [];
+}
 function bundleShaderSource(source2, language) {
   const tokens = tokenize2(source2, language), items = scanTopLevel(source2, language, tokens);
   const byId = new Map(SHADER_CRAFT_LIBRARY.map((e) => [e.id, e]));
@@ -17347,8 +17373,8 @@ function bundleShaderSource(source2, language) {
     throw new Error("Shader-craft requires ZERO initialization in the WGSL entry point: ZERO = min(i32(frame), 0); use the program frame uniform.");
   }
   const credits = [...new Set(added.flatMap((id) => byId.get(id).credits))];
-  const oldBlock = CREDIT_BLOCK.exec(source2);
-  const oldIds = oldBlock ? JSON.parse(/Included symbols: (\[[^\n]*\])/.exec(oldBlock[0])?.[1] ?? "[]") : [];
+  const oldBlock = findCreditBlock(source2);
+  const oldIds = oldBlock ? includedSymbolIds(source2.slice(oldBlock.start, oldBlock.end)) : [];
   const allIds = SHADER_CRAFT_LIBRARY.filter((e) => oldIds.includes(e.id) || required.has(e.id)).map((e) => e.id);
   const allCredits = new Set(allIds.flatMap((id) => byId.get(id).credits));
   const header = `/* shader-craft credits
@@ -17385,7 +17411,8 @@ Included symbols: ${JSON.stringify(allIds)}
   const prototype = callerPrototypes.join("\n") + (callerPrototypes.length ? "\n\n" : "") + (language === "glsl" && requires.has("map") && !items.some((i2) => i2.kind === "prototype" && i2.name === "map" && i2.start < cut) ? "vec2 map(vec3 p);\n\n" : "");
   const library = added.map((id) => getShaderCraftSymbolSource(id, language)).join("\n\n");
   let result = source2.slice(0, cut) + "\n" + (oldBlock ? "" : header + "\n\n") + prototype + library + "\n\n" + source2.slice(cut);
-  if (oldBlock) result = result.replace(CREDIT_BLOCK, header);
+  const merged = oldBlock && findCreditBlock(result);
+  if (merged) result = result.slice(0, merged.start) + header + result.slice(merged.end);
   return { source: result, added, credits };
 }
 
@@ -18106,6 +18133,9 @@ var SHADER_CRAFT_VIDEO_TO_EFFECT = `# Recreate a reference video as a Noisemaker
 Follow the shader-craft workflow (\`SHADER_CRAFT_WORKFLOW\`) to recreate the reference clip below as a Noisemaker
 effect: a definition plus a GLSL and a WGSL program for every pass. Multiple passes, internal textures and
 feedback/state textures are available; nothing has to fit in one pass.
+
+**Scope:** This workflow creates procedural interpretations of reference videos. It is not intended for
+photographic-quality reproductions.
 
 **Who runs this workflow:** a person's own coding agent, connected to the app's agent commands. Shade's in-app model
 does not run it.
@@ -23208,7 +23238,7 @@ var CURATED_KNOWLEDGE = [
   {
     id: "animation-patterns",
     title: "Seamless Animation Patterns",
-    content: "For loops without visible seams, use timeCircle (cos/sin of time*TAU*radius). Avoid raw time in noise. Use periodic functions. For the Bleuje pattern, set t = fract(time). Animate properties with sin/cos of t*TAU. Use integer transitions with floor(t) for discrete changes.",
+    content: "For loops without visible seams, use timeCircle: vec2(cos(time*TAU), sin(time*TAU)) * radius, with time looping 0 to 1. The radius scales the circle and never multiplies the angle: a non-integer factor on time*TAU leaves the circle open at the seam. To repeat within one loop, multiply time*TAU by an integer cycle count. Avoid raw time in noise. Use periodic functions. For the Bleuje pattern, set t = fract(time). Animate properties with sin/cos of t*TAU. Use integer transitions with floor(t) for discrete changes.",
     category: "technique",
     tags: ["animation", "loop", "seamless", "time"]
   },
@@ -24776,7 +24806,7 @@ var GLSL_RECIPES = `## GLSL Recipes
 
 ### Animated Plasma
 \`\`\`glsl
-float t = time * TAU * speed;
+float t = time * TAU * floor(speed); // whole cycles per loop keep the seam closed
 float v = sin(uv.x * scale + t) + sin(uv.y * scale + t);
 v += sin((uv.x + uv.y) * scale + t) + sin(length(uv - 0.5) * scale * 2.0 + t);
 vec3 col = 0.5 + 0.5 * cos(TAU * (v * 0.25 + vec3(0.0, 0.33, 0.67)));

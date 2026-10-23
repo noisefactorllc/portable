@@ -19825,7 +19825,9 @@ var DEFAULT_GLOBALS = {
   setPaused: "__shadeSetPaused",
   setPausedTime: "__shadeSetPausedTime",
   frameCount: "__shadeFrameCount",
-  pipelineGeneration: "__shadePipelineGeneration"
+  pipelineGeneration: "__shadePipelineGeneration",
+  selectEffect: "__shadeSelectEffect",
+  setBackend: "__shadeSetBackend"
 };
 function globalsFromPrefix(prefix) {
   return {
@@ -19836,7 +19838,9 @@ function globalsFromPrefix(prefix) {
     setPaused: `${prefix}SetPaused`,
     setPausedTime: `${prefix}SetPausedTime`,
     frameCount: `${prefix}FrameCount`,
-    pipelineGeneration: `${prefix}PipelineGeneration`
+    pipelineGeneration: `${prefix}PipelineGeneration`,
+    selectEffect: `${prefix}SelectEffect`,
+    setBackend: `${prefix}SetBackend`
   };
 }
 
@@ -20108,7 +20112,7 @@ function swiftshaderVulkanEnv() {
     return {};
   }
 }
-function selectAndAwaitEffect({ effectId, globals, timeout }) {
+function selectAndAwaitEffect({ effectId, effectUrl, globals, timeout }) {
   return new Promise((resolve5) => {
     const w = window;
     const readId = () => {
@@ -20136,10 +20140,23 @@ function selectAndAwaitEffect({ effectId, globals, timeout }) {
       generation: typeof genName === "string" && typeof w[genName] === "number" ? w[genName] : null,
       statusText: document.getElementById("status")?.textContent || ""
     };
-    const select = document.getElementById("effect-select");
-    if (select) {
-      select.value = effectId;
-      select.dispatchEvent(new Event("change"));
+    let selectError = null;
+    const selectFn = typeof globals.selectEffect === "string" ? w[globals.selectEffect] : void 0;
+    if (typeof selectFn === "function") {
+      Promise.resolve().then(() => selectFn(effectId, { url: effectUrl })).then(
+        (r) => {
+          if (r && typeof r.error === "string") selectError = r.error;
+        },
+        (e) => {
+          selectError = e && e.message ? e.message : String(e);
+        }
+      );
+    } else {
+      const select = document.getElementById("effect-select");
+      if (select) {
+        select.value = effectId;
+        select.dispatchEvent(new Event("change"));
+      }
     }
     const start = Date.now();
     let compilingNow = before.compiling;
@@ -20156,6 +20173,16 @@ function selectAndAwaitEffect({ effectId, globals, timeout }) {
         resolve5({
           status: "error",
           message: `Timed out after ${timeout} ms waiting for the viewer to finish building ${effectId}` + (idNow && idNow !== effectId ? ` (the viewer is still showing ${idNow})` : !idNow ? " (the viewer does not report which effect it is showing)" : ""),
+          effectId: idNow ?? null,
+          backend: backendName,
+          passes: null
+        });
+        return;
+      }
+      if (selectError !== null) {
+        resolve5({
+          status: "error",
+          message: selectError,
           effectId: idNow ?? null,
           backend: backendName,
           passes: null
@@ -20405,8 +20432,12 @@ var BrowserSession = class {
       const w = window;
       const readBackend = () => typeof w[globals.currentBackend] === "function" ? w[globals.currentBackend]() : "glsl";
       if (readBackend() === targetBackend2) return { reached: true, backend: targetBackend2 };
+      const setFn = typeof globals.setBackend === "string" ? w[globals.setBackend] : void 0;
       const renderer = w[globals.canvasRenderer];
-      if (renderer && typeof renderer.switchBackend === "function") {
+      if (typeof setFn === "function") {
+        await setFn(targetBackend2);
+        return { reached: readBackend() === targetBackend2, backend: readBackend() };
+      } else if (renderer && typeof renderer.switchBackend === "function") {
         await renderer.switchBackend(targetBackend2);
       } else {
         const btn = document.querySelector(`button[data-backend="${targetBackend2}"]`);
@@ -20464,8 +20495,10 @@ var BrowserSession = class {
    */
   async selectEffect(effectId) {
     const page = this.page;
+    const effectUrl = `/effects/${effectId.split("/").map(encodeURIComponent).join("/")}/`;
     const outcome = await page.evaluate(selectAndAwaitEffect, {
       effectId,
+      effectUrl,
       globals: this.globals,
       timeout: this.timeoutMs
     });
@@ -29399,13 +29432,23 @@ function registerAnalyzeBranching(server2) {
 // src/knowledge/effect-index.ts
 import { readdir, stat } from "fs/promises";
 import { existsSync as existsSync9 } from "fs";
-import { join as join10 } from "path";
+import { basename as basename6, join as join10 } from "path";
 var EffectIndex = class {
   effects = /* @__PURE__ */ new Map();
   initialized = false;
   async initialize(effectsDir) {
     if (this.initialized) return;
     if (!existsSync9(effectsDir)) return;
+    if (existsSync9(join10(effectsDir, "definition.json")) || existsSync9(join10(effectsDir, "definition.js"))) {
+      const id = basename6(effectsDir) || "effect";
+      try {
+        this.effects.set(id, loadEffectDefinition(effectsDir));
+      } catch (err) {
+        console.warn(`[shade-mcp] skipping unparseable effect ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      this.initialized = true;
+      return;
+    }
     const entries2 = await readdir(effectsDir);
     for (const ns of entries2) {
       const nsDir = join10(effectsDir, ns);
@@ -38115,7 +38158,23 @@ function literalSmoothsteps(source2, language = "glsl") {
 }
 
 // src/knowledge/shader-craft/bundler.ts
-var CREDIT_BLOCK = /\/\* shader-craft credits\n[\s\S]*?\*\//;
+var CREDIT_OPEN = "/* shader-craft credits\n";
+var INCLUDED_LABEL = "Included symbols: ";
+function findCreditBlock(text) {
+  const start = text.indexOf(CREDIT_OPEN);
+  if (start < 0) return void 0;
+  const close = text.indexOf("*/", start + CREDIT_OPEN.length);
+  return close < 0 ? void 0 : { start, end: close + 2 };
+}
+function includedSymbolIds(block) {
+  for (let at2 = block.indexOf(INCLUDED_LABEL); at2 >= 0; at2 = block.indexOf(INCLUDED_LABEL, at2 + 1)) {
+    const lineEnd = block.indexOf("\n", at2);
+    const rest = block.slice(at2 + INCLUDED_LABEL.length, lineEnd < 0 ? block.length : lineEnd);
+    const close = rest.lastIndexOf("]");
+    if (rest.startsWith("[") && close > 0) return JSON.parse(rest.slice(0, close + 1));
+  }
+  return [];
+}
 function bundleShaderSource(source2, language) {
   const tokens = tokenize(source2, language), items = scanTopLevel(source2, language, tokens);
   const byId = new Map(SHADER_CRAFT_LIBRARY.map((e) => [e.id, e]));
@@ -38179,8 +38238,8 @@ function bundleShaderSource(source2, language) {
     throw new Error("Shader-craft requires ZERO initialization in the WGSL entry point: ZERO = min(i32(frame), 0); use the program frame uniform.");
   }
   const credits = [...new Set(added.flatMap((id) => byId.get(id).credits))];
-  const oldBlock = CREDIT_BLOCK.exec(source2);
-  const oldIds = oldBlock ? JSON.parse(/Included symbols: (\[[^\n]*\])/.exec(oldBlock[0])?.[1] ?? "[]") : [];
+  const oldBlock = findCreditBlock(source2);
+  const oldIds = oldBlock ? includedSymbolIds(source2.slice(oldBlock.start, oldBlock.end)) : [];
   const allIds = SHADER_CRAFT_LIBRARY.filter((e) => oldIds.includes(e.id) || required2.has(e.id)).map((e) => e.id);
   const allCredits = new Set(allIds.flatMap((id) => byId.get(id).credits));
   const header = `/* shader-craft credits
@@ -38217,7 +38276,8 @@ Included symbols: ${JSON.stringify(allIds)}
   const prototype = callerPrototypes.join("\n") + (callerPrototypes.length ? "\n\n" : "") + (language === "glsl" && requires.has("map") && !items.some((i2) => i2.kind === "prototype" && i2.name === "map" && i2.start < cut) ? "vec2 map(vec3 p);\n\n" : "");
   const library = added.map((id) => getShaderCraftSymbolSource(id, language)).join("\n\n");
   let result = source2.slice(0, cut) + "\n" + (oldBlock ? "" : header + "\n\n") + prototype + library + "\n\n" + source2.slice(cut);
-  if (oldBlock) result = result.replace(CREDIT_BLOCK, header);
+  const merged = oldBlock && findCreditBlock(result);
+  if (merged) result = result.slice(0, merged.start) + header + result.slice(merged.end);
   return { source: result, added, credits };
 }
 
@@ -38833,6 +38893,9 @@ var SHADER_CRAFT_VIDEO_TO_EFFECT = `# Recreate a reference video as a Noisemaker
 Follow the shader-craft workflow (\`SHADER_CRAFT_WORKFLOW\`) to recreate the reference clip below as a Noisemaker
 effect: a definition plus a GLSL and a WGSL program for every pass. Multiple passes, internal textures and
 feedback/state textures are available; nothing has to fit in one pass.
+
+**Scope:** This workflow creates procedural interpretations of reference videos. It is not intended for
+photographic-quality reproductions.
 
 **Who runs this workflow:** a person's own coding agent, connected to the app's agent commands. Shade's in-app model
 does not run it.
@@ -43935,7 +43998,7 @@ var CURATED_KNOWLEDGE = [
   {
     id: "animation-patterns",
     title: "Seamless Animation Patterns",
-    content: "For loops without visible seams, use timeCircle (cos/sin of time*TAU*radius). Avoid raw time in noise. Use periodic functions. For the Bleuje pattern, set t = fract(time). Animate properties with sin/cos of t*TAU. Use integer transitions with floor(t) for discrete changes.",
+    content: "For loops without visible seams, use timeCircle: vec2(cos(time*TAU), sin(time*TAU)) * radius, with time looping 0 to 1. The radius scales the circle and never multiplies the angle: a non-integer factor on time*TAU leaves the circle open at the seam. To repeat within one loop, multiply time*TAU by an integer cycle count. Avoid raw time in noise. Use periodic functions. For the Bleuje pattern, set t = fract(time). Animate properties with sin/cos of t*TAU. Use integer transitions with floor(t) for discrete changes.",
     category: "technique",
     tags: ["animation", "loop", "seamless", "time"]
   },
@@ -44817,7 +44880,7 @@ var listEffectsSchema = {
 function registerListEffects(server2) {
   server2.tool(
     "listEffects",
-    "List all effects, optionally filtered by namespace.",
+    "List all effects, optionally filtered by namespace. Pass `id` to the other tools; `func` is the name a DSL program calls.",
     listEffectsSchema,
     async (args) => {
       const index = await getSharedEffectIndex();
@@ -44828,6 +44891,7 @@ function registerListEffects(server2) {
         effects: effects.map((e) => ({
           id: e.id,
           name: e.def.name || e.def.func,
+          func: e.def.func,
           description: e.def.description || "",
           tags: e.def.tags || [],
           passes: e.def.passes.length,
@@ -45015,7 +45079,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.5.0";
+var VERSION = "0.5.1";
 
 // src/server.ts
 function createShadeServer() {
