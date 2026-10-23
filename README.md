@@ -102,6 +102,22 @@ To use your effect in Noisedeck or other Noise Factor applications:
 
 ---
 
+## Working with a Coding Agent
+
+This repository registers [shade-mcp](https://github.com/noisefactorllc/shade-mcp), Noise Factor's shader tools, as an MCP server for agents. Run `npm install`, then `npx playwright install chromium` for the tools that render. Claude Code offers the `shade` server from `.mcp.json` when it opens this checkout; VS Code reads `.vscode/mcp.json`. Other clients run `node vendor/shade-mcp/index.js` from the checkout with the environment in `.mcp.json`.
+
+The tools know the effect by its directory name, `effect`. A DSL program calls it by the `func` in `definition.json`, such as `gradientSweep`. A typical loop:
+
+1. Edit the files in `effect/`.
+2. `compileEffect` compiles every pass and returns the shader compiler's errors.
+3. `renderEffectFrame` with `capture_image: true` returns the rendered frame to look at.
+4. `testUniformResponsiveness`, `testPixelParity` (GLSL against WGSL) and `checkEffectStructure` check the parameters, backend parity and file layout.
+5. `runDslProgram` with `effects: "effect"` renders a program that uses the effect.
+
+`searchShaderKnowledge`, `searchShaderLibrary`, `bundleShader` and `checkShader` find shader techniques and GLSL/WGSL building blocks and review source. The shade-mcp README describes every tool.
+
+---
+
 ## Example Effect
 
 The included `effect/` directory contains a complete portable effect. It draws a diagonal color gradient that rotates smoothly over time. The `time` uniform controls its seamless loop.

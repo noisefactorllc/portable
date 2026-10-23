@@ -3,7 +3,6 @@
 const FORMAT = 'noisefactor-workspace';
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
-const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 function require(condition, message) {
     if (!condition) throw new TypeError(message);
@@ -31,11 +30,10 @@ function fileMap(files, label) {
             && path.split('/').every(part => part && !['.', '..', '__proto__', 'prototype', 'constructor'].includes(part)),
         `${label} has an unsafe path`);
         shape(file, ['encoding', 'data'], `${label}/${path}`);
-        require(typeof file.data === 'string', `${label}/${path} data must be a string`);
-        require(file.encoding === 'utf8' || file.encoding === 'base64', `${label}/${path} encoding must be utf8 or base64`);
-        if (file.encoding === 'base64') {
-            require(BASE64.test(file.data) && btoa(atob(file.data)) === file.data, `${label}/${path} has invalid base64`);
-        }
+        // Binary files, images included, stay bytes: never base64 or other text.
+        require(file.encoding === 'utf8' || file.encoding === 'binary', `${label}/${path} encoding must be utf8 or binary`);
+        require(file.encoding === 'utf8' ? typeof file.data === 'string' : file.data instanceof Uint8Array,
+            `${label}/${path} data must be ${file.encoding === 'utf8' ? 'a string' : 'a Uint8Array'}`);
     }
 }
 
@@ -86,8 +84,148 @@ export function parseWorkspace(json) {
     return validate(JSON.parse(json));
 }
 
+function* files(workspace) {
+    for (const effect of workspace.effects) {
+        for (const [path, file] of Object.entries(effect.files)) yield [`effects/${effect.id}/${path}`, file];
+    }
+    for (const [path, file] of Object.entries(workspace.assets)) yield [`assets/${path}`, file];
+}
+
+// JSON text carries UTF-8 files only. A workspace with binary files is saved
+// and shared with packWorkspace.
 export function serializeWorkspace(workspace) {
-    return JSON.stringify(validate(workspace), null, 2) + '\n';
+    validate(workspace);
+    for (const [entry, file] of files(workspace)) {
+        require(file.encoding === 'utf8', `${entry} is binary: save this workspace with packWorkspace`);
+    }
+    return JSON.stringify(workspace, null, 2) + '\n';
+}
+
+// The packed workspace is a ZIP archive of stored entries: workspace.json, the
+// envelope with each file's encoding but not its data, then every file at
+// effects/<effect id>/<path> or assets/<path> as raw bytes.
+const MANIFEST = 'workspace.json';
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+});
+
+function crc32(bytes) {
+    let c = 0xffffffff;
+    for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+}
+
+function utf8(text) {
+    return new TextEncoder().encode(text);
+}
+
+export function packWorkspace(workspace) {
+    validate(workspace);
+    const manifest = structuredClone(workspace);
+    for (const effect of manifest.effects) {
+        for (const file of Object.values(effect.files)) delete file.data;
+    }
+    for (const file of Object.values(manifest.assets)) delete file.data;
+    const entries = [[MANIFEST, utf8(JSON.stringify(manifest, null, 2) + '\n')]];
+    for (const [entry, file] of files(workspace)) {
+        entries.push([entry, file.encoding === 'utf8' ? utf8(file.data) : file.data]);
+    }
+
+    const locals = [];
+    const centrals = [];
+    let offset = 0;
+    for (const [entry, data] of entries) {
+        const name = utf8(entry);
+        const crc = crc32(data);
+        const local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, 0x04034b50, true);
+        local.setUint16(4, 20, true);
+        local.setUint16(6, 0x0800, true); // UTF-8 names
+        local.setUint16(12, 0x21, true); // 1980-01-01, so equal input packs to equal bytes
+        local.setUint32(14, crc, true);
+        local.setUint32(18, data.length, true);
+        local.setUint32(22, data.length, true);
+        local.setUint16(26, name.length, true);
+        locals.push(new Uint8Array(local.buffer), name, data);
+        const central = new DataView(new ArrayBuffer(46));
+        central.setUint32(0, 0x02014b50, true);
+        central.setUint16(4, 20, true);
+        central.setUint16(6, 20, true);
+        central.setUint16(8, 0x0800, true);
+        central.setUint16(14, 0x21, true);
+        central.setUint32(16, crc, true);
+        central.setUint32(20, data.length, true);
+        central.setUint32(24, data.length, true);
+        central.setUint16(28, name.length, true);
+        central.setUint32(42, offset, true);
+        centrals.push(new Uint8Array(central.buffer), name);
+        offset += 30 + name.length + data.length;
+    }
+    const directorySize = centrals.reduce((size, part) => size + part.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, entries.length, true);
+    end.setUint16(10, entries.length, true);
+    end.setUint32(12, directorySize, true);
+    end.setUint32(16, offset, true);
+
+    const parts = [...locals, ...centrals, new Uint8Array(end.buffer)];
+    const packed = new Uint8Array(parts.reduce((size, part) => size + part.length, 0));
+    let at = 0;
+    for (const part of parts) { packed.set(part, at); at += part.length; }
+    return packed;
+}
+
+export function unpackWorkspace(packed) {
+    const bytes = packed instanceof Uint8Array ? packed : new Uint8Array(packed);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const endAt = bytes.length - 22;
+    require(endAt >= 0 && view.getUint32(endAt, true) === 0x06054b50, 'packed workspace must be a ZIP archive without a comment');
+    const count = view.getUint16(endAt + 10, true);
+    let at = view.getUint32(endAt + 16, true);
+    const entries = new Map();
+    for (let n = 0; n < count; n++) {
+        require(view.getUint32(at, true) === 0x02014b50, 'packed workspace has a damaged directory');
+        require(view.getUint16(at + 10, true) === 0, 'packed workspace entries must be stored, not compressed');
+        const crc = view.getUint32(at + 16, true);
+        const size = view.getUint32(at + 20, true);
+        const nameLength = view.getUint16(at + 28, true);
+        const local = view.getUint32(at + 42, true);
+        const entry = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(at + 46, at + 46 + nameLength));
+        at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+        require(view.getUint32(local, true) === 0x04034b50, `packed workspace entry ${entry} is damaged`);
+        const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+        const data = bytes.slice(start, start + size);
+        require(data.length === size && crc32(data) === crc, `packed workspace entry ${entry} fails its checksum`);
+        require(!entries.has(entry), `packed workspace repeats ${entry}`);
+        entries.set(entry, data);
+    }
+    require(entries.has(MANIFEST), `packed workspace has no ${MANIFEST}`);
+    const workspace = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(entries.get(MANIFEST)));
+    entries.delete(MANIFEST);
+    shape(workspace, ['format', 'version', 'id', 'revision', 'effects', 'assets', 'composition'], 'workspace');
+    require(Array.isArray(workspace.effects), 'workspace.effects must be an array');
+    const fill = (fileMapValue, prefix, label) => {
+        record(fileMapValue, label);
+        for (const [path, file] of Object.entries(fileMapValue)) {
+            shape(file, ['encoding'], `${label}/${path}`);
+            const entry = `${prefix}${path}`;
+            require(entries.has(entry), `packed workspace is missing ${entry}`);
+            const data = entries.get(entry);
+            entries.delete(entry);
+            file.data = file.encoding === 'utf8' ? new TextDecoder('utf-8', { fatal: true }).decode(data) : data;
+        }
+    };
+    for (const effect of workspace.effects) {
+        record(effect, 'effect');
+        validId(effect.id, 'effect.id');
+        fill(effect.files, `effects/${effect.id}/`, `effect ${effect.id}`);
+    }
+    fill(workspace.assets, 'assets/', 'assets');
+    require(entries.size === 0, `packed workspace has unlisted entries: ${[...entries.keys()].join(', ')}`);
+    return validate(workspace);
 }
 
 export function importSingleEffect(files, { workspaceId, effectId, dsl } = {}) {

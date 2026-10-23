@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import {
-    parseWorkspace, serializeWorkspace, importSingleEffect, exportEffect,
-    replaceEffect,
+    parseWorkspace, serializeWorkspace, packWorkspace, unpackWorkspace,
+    importSingleEffect, exportEffect, replaceEffect,
 } from './workspace.mjs';
 
 const legacy = Object.fromEntries(['definition.json', 'glsl/gradientSweep.glsl',
@@ -13,15 +13,58 @@ const legacy = Object.fromEntries(['definition.json', 'glsl/gradientSweep.glsl',
     [path, readFileSync(new URL(`./effect/${path}`, import.meta.url), 'utf8')]));
 const load = () => JSON.parse(readFileSync(new URL('./fixtures/two-effect-workspace.json', import.meta.url), 'utf8'));
 
-test('two chained effects, parameter values and binary assets survive save/reload', () => {
+// A real image, kept as bytes from file to packed workspace and back.
+const image = new Uint8Array(readFileSync(new URL('./docs/hero.jpg', import.meta.url)));
+const withImages = () => {
+    const workspace = load();
+    workspace.assets['images/hero.jpg'] = { encoding: 'binary', data: image.slice() };
+    workspace.effects[1].files['textures/hero.jpg'] = { encoding: 'binary', data: image.slice() };
+    return workspace;
+};
+
+test('two chained effects and parameter values survive save/reload', () => {
     const source = load();
     const restored = parseWorkspace(serializeWorkspace(source));
     assert.deepEqual(restored, source);
     assert.match(restored.composition.dsl, /gradientSweep\(speed: 2\).*tintFilter\(amount: 0.4\)/s);
     assert.deepEqual(restored.composition.effectIds, ['gradient', 'tint']);
-    assert.equal(restored.assets['palette.bin'].data, 'AAECA/8=');
     restored.effects[0].files['help.md'].data = 'changed';
     assert.notEqual(source.effects[0].files['help.md'].data, 'changed');
+});
+
+test('a workspace with images packs and unpacks with the image bytes intact', () => {
+    const source = withImages();
+    const packed = packWorkspace(source);
+    const restored = unpackWorkspace(packed);
+    assert.deepEqual(restored, source);
+    assert.ok(restored.assets['images/hero.jpg'].data instanceof Uint8Array);
+    assert.deepEqual(restored.assets['images/hero.jpg'].data, image);
+    assert.deepEqual(restored.effects[1].files['textures/hero.jpg'].data, image);
+    assert.deepEqual(packWorkspace(restored), packed, 'equal input packs to equal bytes');
+    // The image travels as raw bytes in the archive, never as text.
+    const text = new TextDecoder('latin1').decode(packed);
+    assert.ok(text.includes(new TextDecoder('latin1').decode(image)));
+    assert.ok(!text.includes(Buffer.from(image).toString('base64').slice(0, 64)));
+});
+
+test('images are never text: JSON saving refuses them and base64 is not an encoding', () => {
+    assert.throws(() => serializeWorkspace(withImages()), /packWorkspace/);
+    const encoded = load();
+    encoded.assets['palette.bin'] = { encoding: 'base64', data: 'AAECA/8=' };
+    assert.throws(() => serializeWorkspace(encoded), /utf8 or binary/);
+    assert.throws(() => parseWorkspace(JSON.stringify(encoded)), /utf8 or binary/);
+    const stringified = withImages();
+    stringified.assets['images/hero.jpg'].data = 'not bytes';
+    assert.throws(() => packWorkspace(stringified), /Uint8Array/);
+});
+
+test('a damaged, padded or incomplete packed workspace fails closed', () => {
+    const packed = packWorkspace(withImages());
+    const flipped = packed.slice();
+    flipped[200] ^= 0xff;
+    assert.throws(() => unpackWorkspace(flipped));
+    assert.throws(() => unpackWorkspace(packed.slice(0, packed.length - 10)));
+    assert.throws(() => unpackWorkspace(new TextEncoder().encode(serializeWorkspace(load()))));
 });
 
 test('legacy single-effect import preserves every file and its default DSL', () => {
@@ -110,7 +153,6 @@ test('file paths cannot escape their package or use ambiguous path segments', ()
 
 test('malformed file payloads, definitions and missing shader files fail closed', () => {
     for (const mutate of [
-        w => { w.assets['palette.bin'].data = 'not base64'; },
         w => { w.effects[0].files['definition.json'].data = '{'; },
         w => { w.effects[0].files['definition.json'].encoding = 'base64'; },
         w => { delete w.effects[0].files['definition.json']; },

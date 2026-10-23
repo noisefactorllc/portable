@@ -8,7 +8,7 @@ The effect viewer is a development environment for testing portable effects loca
 
 - **Full-page canvas** - Effect renders at full viewport resolution
 - **Parameter controls** - Type-appropriate controls for every effect global: sliders for `float`/`int` (one per component for `vec2`/`vec3`), a dropdown for `int` parameters with `choices`, a checkbox for `boolean`, and a color picker for `color`
-- **Manual reload** - Click the Reload Effect button or refresh the page after changes
+- **Automatic reload** - The viewer checks `definition.json` and the shader files every second and reloads when one changes; **Reload Effect** or a page refresh forces a reload
 - **Resize handling** - Canvas adapts to window size changes
 - **Backend auto-detection** - Automatically selects WebGL or WebGPU based on available shader files
 - **Backend toggle** - Switch between WebGL and WebGPU when both shader types are available
@@ -38,7 +38,7 @@ Navigate to [http://localhost:2999/viewer/](http://localhost:2999/viewer/) (or t
 
 ## Reloading Changes
 
-After editing your effect files, click the **Reload Effect** button in the viewer or refresh the page. The viewer will:
+The viewer reloads within a second of a saved change to `definition.json` or a shader file. To force a reload, click **Reload Effect** or refresh the page. Either way, the viewer will:
 
 1. Reload the effect definition
 2. Reload the shader source
@@ -128,14 +128,10 @@ The viewer always loads from the `effect/` directory. To create a new effect, re
 
 ## Advanced: Loading Different Effects
 
-The viewer loads from `/effect/` by default. To load from a different directory, modify the fetch paths in `viewer/index.html`:
+The viewer loads `../effect/`, relative to the viewer page, by default. To load another effect, pass its directory (the one that contains `definition.json`) in the `effect` query parameter, as a path relative to the viewer page or a URL:
 
-```javascript
-// Load effect definition from JSON
-async function loadEffectDefinition() {
-    const response = await fetch('/my-other-effect/definition.json', { cache: 'no-store' });
-    // ...
-}
+```
+http://localhost:2999/viewer/?effect=../my-other-effect/
 ```
 
 ---

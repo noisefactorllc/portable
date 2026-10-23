@@ -25,8 +25,11 @@ Each effect carries `definition.json` and at least one GLSL or WGSL shader.
 A complete two-effect fixture is in
 [`fixtures/two-effect-workspace.json`](../fixtures/two-effect-workspace.json).
 Every file entry maps a relative path to `{ "encoding": "utf8", "data": "..." }`
-or `{ "encoding": "base64", "data": "..." }`. Definitions and shaders use UTF-8;
-binary assets use canonical padded base64. File paths cannot be absolute, use
+for text, or, in memory, `{ "encoding": "binary", "data": <Uint8Array> }` for
+binary files such as images. Definitions and shaders use UTF-8. Binary files
+stay bytes: they are never base64 or any other text, and JSON cannot carry
+them. A workspace with only UTF-8 files saves as JSON; a workspace with binary
+files saves and shares as a packed workspace. File paths cannot be absolute, use
 backslashes, contain control characters or colons, or contain empty, dot,
 parent, or prototype-related segments. Effect file paths are relative to that
 effect's package; workspace asset paths are relative to the workspace asset
@@ -52,7 +55,15 @@ fields or versions are rejected to prevent unsupported data being discarded.
 The browser-compatible module exports:
 
 - `parseWorkspace(json)` and `serializeWorkspace(workspace)`: validate and
-  round-trip the complete envelope, preserving effect files and assets.
+  round-trip the complete envelope as JSON, preserving effect files and assets.
+  `serializeWorkspace` refuses a workspace with binary files.
+- `packWorkspace(workspace)` and `unpackWorkspace(bytes)`: validate and
+  round-trip any workspace, binary files included, as a packed workspace: a ZIP
+  archive of stored entries holding `workspace.json` (the envelope with each
+  file's encoding but not its data) and every file as raw bytes at
+  `effects/<effect id>/<path>` or `assets/<path>`. Equal workspaces pack to
+  equal bytes. Unpacking rejects compressed, damaged, missing and unlisted
+  entries.
 - `importSingleEffect(files, { workspaceId, effectId, dsl? })`: wrap a legacy
   map of UTF-8 file contents at revision 0. It uses `defaultProgram` when no DSL
   is supplied; packages without a default require explicit DSL. ZIP extraction

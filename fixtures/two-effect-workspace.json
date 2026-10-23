@@ -39,12 +39,7 @@
       }
     }
   ],
-  "assets": {
-    "palette.bin": {
-      "encoding": "base64",
-      "data": "AAECA/8="
-    }
-  },
+  "assets": {},
   "composition": {
     "dsl": "search user\ngradientSweep(speed: 2).tintFilter(amount: 0.4).write(o0)\nrender(o0)",
     "effectIds": [
