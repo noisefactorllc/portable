@@ -21163,7 +21163,7 @@ async function callAI(options) {
   return callOpenAI(options);
 }
 async function callAnthropic(options) {
-  const client = new Anthropic({ apiKey: options.ai.apiKey, ...aiClientOptions() });
+  const client = new Anthropic({ apiKey: options.ai.apiKey, ...aiClientOptions(), openTelemetry: false });
   const content = options.userContent.map((block) => {
     if (block.type === "image_url" && block.image_url) {
       const url2 = block.image_url.url;
@@ -45079,7 +45079,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.5.1";
+var VERSION = "0.5.2";
 
 // src/server.ts
 function createShadeServer() {
