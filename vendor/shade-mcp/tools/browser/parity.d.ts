@@ -8,6 +8,7 @@ export declare const testPixelParitySchema: {
     epsilon: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     seed: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
 };
+export declare const PARITY_FRAMES = 8;
 export declare function testPixelParity(session: BrowserSession, effectId: string, options?: {
     epsilon?: number;
     seed?: number;
