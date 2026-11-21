@@ -329,7 +329,7 @@ for (const { path, name } of allFiles) {
 // =========================================================================
 
 console.log('\n===========================')
-if (totalErrors > 0) {
+if (totalErrors > 0 || totalChecks === 0) {
     console.error(`FAILED: ${totalErrors} error(s) out of ${totalChecks} checks`)
     process.exit(1)
 } else {

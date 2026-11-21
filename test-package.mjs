@@ -192,13 +192,12 @@ console.log('Testing package-portable.mjs...');
 
 // 6. The bash packager must agree with the Node path: same contents and
 //    exclusions on success, and a failed run preserves an existing output
-//    file instead of destroying it first. Skipped, loudly, only where the
-//    zip/unzip tools the script drives are not installed.
+//    file instead of destroying it first. Both packaging tools are required.
 {
     const tools = spawnSync('bash', ['-c', 'command -v zip && command -v unzip'],
         { encoding: 'utf8' });
     if (tools.status !== 0) {
-        console.log('SKIP: package-portable.sh checks (zip/unzip not installed)');
+        assert(false, 'package-portable.sh checks require zip and unzip');
     } else {
         // Success: same entries and junk exclusions as the Node packager.
         {

@@ -35,7 +35,7 @@ try {
     const linux = process.platform === 'linux';
     browser = await chromium.launch({
         channel: linux ? 'chromium' : 'chrome',
-        headless: !linux,
+        headless: true,
         // Linux CI uses SwiftShader for both APIs and Vulkan compositing.
         args: ['--enable-unsafe-webgpu', ...(linux ? [
             '--enable-unsafe-swiftshader', '--use-angle=swiftshader',

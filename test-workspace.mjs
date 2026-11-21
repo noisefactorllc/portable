@@ -15,10 +15,10 @@ const load = () => JSON.parse(readFileSync(new URL('./fixtures/two-effect-worksp
 
 // A real image, kept as bytes from file to packed workspace and back.
 const image = new Uint8Array(readFileSync(new URL('./docs/hero.jpg', import.meta.url)));
-const withImages = () => {
+const withImages = (bytes = image) => {
     const workspace = load();
-    workspace.assets['images/hero.jpg'] = { encoding: 'binary', data: image.slice() };
-    workspace.effects[1].files['textures/hero.jpg'] = { encoding: 'binary', data: image.slice() };
+    workspace.assets['images/hero.jpg'] = { encoding: 'binary', data: bytes.slice() };
+    workspace.effects[1].files['textures/hero.jpg'] = { encoding: 'binary', data: bytes.slice() };
     return workspace;
 };
 
@@ -165,6 +165,28 @@ test('malformed file payloads, definitions and missing shader files fail closed'
         mutate(workspace);
         assert.throws(() => serializeWorkspace(workspace));
     }
+});
+
+test('exported binary effect files are detached from the workspace', () => {
+    const source = withImages(new Uint8Array([0, 1, 2, 255]));
+    const before = structuredClone(source);
+    const exported = exportEffect(source, 'tint');
+    exported['textures/hero.jpg'].data.fill(0);
+    exported['definition.json'].data = '{}';
+    delete exported['glsl/tintFilter.glsl'];
+    assert.deepEqual(source, before);
+});
+
+test('replacement candidates detach both unchanged assets and supplied binary files', () => {
+    const source = withImages(new Uint8Array([0, 1, 2, 255]));
+    const before = structuredClone(source);
+    const files = structuredClone(source.effects[1].files);
+    const supplied = structuredClone(files);
+    const candidate = replaceEffect(source, 'tint', files, { expectedRevision: 0 });
+    candidate.assets['images/hero.jpg'].data.fill(0);
+    candidate.effects[1].files['textures/hero.jpg'].data.fill(1);
+    assert.deepEqual(source, before);
+    assert.deepEqual(files, supplied);
 });
 
 test('the saved two-effect fixture renders identically after browser import and reload', { timeout: 30000 }, async () => {
