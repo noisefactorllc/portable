@@ -33,9 +33,14 @@ let browser;
 try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const linux = process.platform === 'linux';
+    const xvfb = process.env.PORTABLE_TEST_XVFB === '1';
+    if (xvfb) {
+        assert(linux, 'The Xvfb test mode requires Linux');
+        assert(process.env.DISPLAY, 'The Xvfb test mode requires a virtual display');
+    }
     browser = await chromium.launch({
         channel: linux ? 'chromium' : 'chrome',
-        headless: true,
+        headless: !xvfb,
         // Linux CI uses SwiftShader for both APIs and Vulkan compositing.
         args: ['--enable-unsafe-webgpu', ...(linux ? [
             '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
