@@ -9065,8 +9065,110 @@ debug: visualize intermediate fields. The shader-craft DEBUG_MODE convention: 0 
   }
 ];
 
+// src/knowledge/shader-craft/library/precision.ts
+var PRECISION_GLSL = `uint nmCraftAddWords(uint a, uint b) {
+    uint aa = a & 0x7fffffffu;
+    uint bb = b & 0x7fffffffu;
+    if (aa > 0x7f800000u || bb > 0x7f800000u) return 0x7fc00000u;
+    if (aa == 0x7f800000u && bb == aa && ((a ^ b) >> 31u) != 0u) return 0x7fc00000u;
+    if (aa == 0x7f800000u) return a;
+    if (bb == 0x7f800000u) return b;
+    if (aa < bb) { uint t = a; a = b; b = t; t = aa; aa = bb; bb = t; }
+    uint signBit = a & 0x80000000u;
+    uint ea = aa >> 23u;
+    uint eb = bb >> 23u;
+    uint ma = ((aa & 0x7fffffu) | (ea == 0u ? 0u : 0x800000u)) << 3u;
+    uint mb = ((bb & 0x7fffffu) | (eb == 0u ? 0u : 0x800000u)) << 3u;
+    ea = max(ea, 1u); eb = max(eb, 1u);
+    uint shift = ea - eb;
+    if (shift >= 32u) mb = mb == 0u ? 0u : 1u;
+    else if (shift > 0u) mb = (mb >> shift) | ((mb & ((1u << shift) - 1u)) == 0u ? 0u : 1u);
+    bool subtract = ((a ^ b) >> 31u) != 0u;
+    uint sum = subtract ? ma - mb : ma + mb;
+    if (sum == 0u) return subtract ? 0u : signBit;
+    if ((sum & 0x8000000u) != 0u) { sum = (sum >> 1u) | (sum & 1u); ea++; }
+    uint norm = sum; uint leading = 0u;
+    if (norm < 0x800u) { norm <<= 16u; leading += 16u; }
+    if (norm < 0x80000u) { norm <<= 8u; leading += 8u; }
+    if (norm < 0x800000u) { norm <<= 4u; leading += 4u; }
+    if (norm < 0x2000000u) { norm <<= 2u; leading += 2u; }
+    if (norm < 0x4000000u) leading++;
+    uint normalizeShift = min(leading, ea - 1u);
+    sum <<= normalizeShift; ea -= normalizeShift;
+    uint mantissa = sum >> 3u;
+    uint remainder = sum & 7u;
+    if (remainder > 4u || (remainder == 4u && (mantissa & 1u) != 0u)) mantissa++;
+    if ((mantissa & 0x1000000u) != 0u) { mantissa >>= 1u; ea++; }
+    if (ea >= 255u) return signBit | 0x7f800000u;
+    if (ea == 1u && mantissa < 0x800000u) ea = 0u;
+    return signBit | (ea << 23u) | (mantissa & 0x7fffffu);
+}
+
+float nmCraftAdd(float a, float b) {
+    return uintBitsToFloat(nmCraftAddWords(floatBitsToUint(a), floatBitsToUint(b)));
+}`;
+var PRECISION_WGSL = `fn nmCraftAddWords(a: u32, b: u32) -> u32 {
+    var a_ = a; var b_ = b;
+    var aa = a_ & 0x7fffffffu;
+    var bb = b_ & 0x7fffffffu;
+    if (aa > 0x7f800000u || bb > 0x7f800000u) { return 0x7fc00000u; }
+    if (aa == 0x7f800000u && bb == aa && ((a_ ^ b_) >> 31u) != 0u) { return 0x7fc00000u; }
+    if (aa == 0x7f800000u) { return a_; }
+    if (bb == 0x7f800000u) { return b_; }
+    if (aa < bb) { let t = a_; a_ = b_; b_ = t; let m = aa; aa = bb; bb = m; }
+    let signBit = a_ & 0x80000000u;
+    var ea = aa >> 23u;
+    var eb = bb >> 23u;
+    let ma = ((aa & 0x7fffffu) | select(0x800000u, 0u, ea == 0u)) << 3u;
+    var mb = ((bb & 0x7fffffu) | select(0x800000u, 0u, eb == 0u)) << 3u;
+    ea = max(ea, 1u); eb = max(eb, 1u);
+    let shift = ea - eb;
+    if (shift >= 32u) { mb = select(1u, 0u, mb == 0u); }
+    else if (shift > 0u) { mb = (mb >> shift) | select(1u, 0u, (mb & ((1u << shift) - 1u)) == 0u); }
+    let subtract = ((a_ ^ b_) >> 31u) != 0u;
+    var sum = select(ma + mb, ma - mb, subtract);
+    if (sum == 0u) { return select(signBit, 0u, subtract); }
+    if ((sum & 0x8000000u) != 0u) { sum = (sum >> 1u) | (sum & 1u); ea += 1u; }
+    let normalizeShift = min(countLeadingZeros(sum) - 5u, ea - 1u);
+    sum <<= normalizeShift; ea -= normalizeShift;
+    var mantissa = sum >> 3u;
+    let remainder = sum & 7u;
+    if (remainder > 4u || (remainder == 4u && (mantissa & 1u) != 0u)) { mantissa += 1u; }
+    if ((mantissa & 0x1000000u) != 0u) { mantissa >>= 1u; ea += 1u; }
+    if (ea >= 255u) { return signBit | 0x7f800000u; }
+    if (ea == 1u && mantissa < 0x800000u) { ea = 0u; }
+    return signBit | (ea << 23u) | (mantissa & 0x7fffffu);
+}
+
+fn nmCraftAdd(a: f32, b: f32) -> f32 {
+    return bitcast<f32>(nmCraftAddWords(bitcast<u32>(a), bitcast<u32>(b)));
+}`;
+var PRECISION_SYMBOLS = [
+  {
+    id: "nmCraftAddWords(uint,uint)",
+    kind: "function",
+    module: "common",
+    internal: true,
+    summary: "Internal binary32 addition with explicit integer rounding.",
+    credits: [],
+    glsl: { name: "nmCraftAddWords", signature: "uint nmCraftAddWords(uint a, uint b)", dependencies: [], requires: [] },
+    wgsl: { name: "nmCraftAddWords", signature: "fn nmCraftAddWords(a: u32, b: u32) -> u32", dependencies: [], requires: [] }
+  },
+  {
+    id: "nmCraftAdd(float,float)",
+    kind: "function",
+    module: "common",
+    internal: true,
+    summary: "Internal floating-point addition with explicit rounding.",
+    credits: [],
+    glsl: { name: "nmCraftAdd", signature: "float nmCraftAdd(float a, float b)", dependencies: ["nmCraftAddWords(uint,uint)"], requires: [] },
+    wgsl: { name: "nmCraftAdd", signature: "fn nmCraftAdd(a: f32, b: f32) -> f32", dependencies: ["nmCraftAddWords(uint,uint)"], requires: [] }
+  }
+];
+
 // src/knowledge/shader-craft/library/symbols.ts
 var SHADER_CRAFT_LIBRARY = [
+  ...PRECISION_SYMBOLS,
   {
     id: "PI",
     kind: "const",
@@ -9109,8 +9211,9 @@ var SHADER_CRAFT_LIBRARY = [
     module: "common",
     summary: "Squared length.",
     credits: ["shader-skills"],
-    glsl: { name: "dot2", signature: "float dot2(vec2 v)", dependencies: [], requires: [] },
-    wgsl: { name: "dot2_f2", signature: "fn dot2_f2(v: vec2f) -> f32", dependencies: [], requires: [] }
+    adaptation: "Round the products before integer-rounded addition to prevent backend-dependent contraction.",
+    glsl: { name: "dot2", signature: "float dot2(vec2 v)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "dot2_f2", signature: "fn dot2_f2(v: vec2f) -> f32", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "dot2(vec3)",
@@ -9650,8 +9753,8 @@ var SHADER_CRAFT_LIBRARY = [
     module: "noise",
     summary: "Interleaved gradient noise: cheap per-pixel noise whose 3x3 neighborhoods are nearly stratified.",
     credits: ["interleaved-gradient-noise"],
-    glsl: { name: "interleavedGradientNoise", signature: "float interleavedGradientNoise(vec2 pixel)", dependencies: [], requires: [] },
-    wgsl: { name: "interleavedGradientNoise_f2", signature: "fn interleavedGradientNoise_f2(pixel: vec2f) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "interleavedGradientNoise", signature: "float interleavedGradientNoise(vec2 pixel)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "interleavedGradientNoise_f2", signature: "fn interleavedGradientNoise_f2(pixel: vec2f) -> f32", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "interleavedGradientNoise(vec2,int)",
@@ -9668,8 +9771,8 @@ var SHADER_CRAFT_LIBRARY = [
     module: "noise",
     summary: "R2 low-discrepancy dither mask (plastic-constant sequence), folded by a triangle wave for an even spread.",
     credits: ["r2-sequence"],
-    glsl: { name: "r2Dither", signature: "float r2Dither(vec2 pixel)", dependencies: [], requires: [] },
-    wgsl: { name: "r2Dither", signature: "fn r2Dither(pixel: vec2f) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "r2Dither", signature: "float r2Dither(vec2 pixel)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "r2Dither", signature: "fn r2Dither(pixel: vec2f) -> f32", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "triangleWave(vec2)",
@@ -9722,8 +9825,8 @@ var SHADER_CRAFT_LIBRARY = [
     module: "pattern",
     summary: "Distance from a hexGrid local coordinate to its hexagon's edge (0.5 at the center, 0 on the edge).",
     credits: ["shader-skills"],
-    glsl: { name: "hexEdgeDistance", signature: "float hexEdgeDistance(vec2 local)", dependencies: [], requires: [] },
-    wgsl: { name: "hexEdgeDistance", signature: "fn hexEdgeDistance(local: vec2f) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "hexEdgeDistance", signature: "float hexEdgeDistance(vec2 local)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "hexEdgeDistance", signature: "fn hexEdgeDistance(local: vec2f) -> f32", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "truchetArcs(vec2,float)",
@@ -9741,8 +9844,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Sphere of radius r.",
     exactness: "exact",
     credits: ["quilez-articles"],
-    glsl: { name: "sdSphere", signature: "float sdSphere(vec3 p, float r)", dependencies: [], requires: [] },
-    wgsl: { name: "sdSphere", signature: "fn sdSphere(p: vec3f, r: f32) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "sdSphere", signature: "float sdSphere(vec3 p, float r)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "sdSphere", signature: "fn sdSphere(p: vec3f, r: f32) -> f32", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "sdBox(vec3,vec3)",
@@ -9985,8 +10088,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Axis-aligned rectangle with half-extents b.",
     exactness: "exact",
     credits: ["quilez-articles"],
-    glsl: { name: "sdBox", signature: "float sdBox(vec2 p, vec2 b)", dependencies: [], requires: [] },
-    wgsl: { name: "sdBox_f2f2", signature: "fn sdBox_f2f2(p: vec2f, b: vec2f) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "sdBox", signature: "float sdBox(vec2 p, vec2 b)", dependencies: ["dot2(vec2)"], requires: [] },
+    wgsl: { name: "sdBox_f2f2", signature: "fn sdBox_f2f2(p: vec2f, b: vec2f) -> f32", dependencies: ["dot2(vec2)"], requires: [] }
   },
   {
     id: "sdRoundedBox(vec2,vec2,vec4)",
@@ -10025,8 +10128,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Circular arc symmetric about +Y.",
     exactness: "exact",
     credits: ["quilez-articles"],
-    glsl: { name: "sdArc", signature: "float sdArc(vec2 p, vec2 sc, float ra, float rb)", dependencies: [], requires: [] },
-    wgsl: { name: "sdArc", signature: "fn sdArc(p: vec2f, sc: vec2f, ra: f32, rb: f32) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "sdArc", signature: "float sdArc(vec2 p, vec2 sc, float ra, float rb)", dependencies: ["dot2(vec2)"], requires: [] },
+    wgsl: { name: "sdArc", signature: "fn sdArc(p: vec2f, sc: vec2f, ra: f32, rb: f32) -> f32", dependencies: ["dot2(vec2)"], requires: [] }
   },
   {
     id: "sdEquilateralTriangle(vec2,float)",
@@ -10045,8 +10148,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Arbitrary triangle p0, p1, p2 (any winding).",
     exactness: "exact",
     credits: ["quilez-articles"],
-    glsl: { name: "sdTriangle", signature: "float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2)", dependencies: [], requires: [] },
-    wgsl: { name: "sdTriangle", signature: "fn sdTriangle(p: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "sdTriangle", signature: "float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "sdTriangle", signature: "fn sdTriangle(p: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "sdRegularPolygon(vec2,float,int)",
@@ -10055,8 +10158,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Regular n-gon with circumradius r, one vertex pointing up.",
     exactness: "exact",
     credits: ["quilez-articles"],
-    glsl: { name: "sdRegularPolygon", signature: "float sdRegularPolygon(vec2 p, float r, int n)", dependencies: ["PI"], requires: [] },
-    wgsl: { name: "sdRegularPolygon", signature: "fn sdRegularPolygon(p: vec2f, r: f32, n: i32) -> f32", dependencies: ["PI"], requires: [] }
+    glsl: { name: "sdRegularPolygon", signature: "float sdRegularPolygon(vec2 p, float r, int n)", dependencies: ["PI", "dot2(vec2)"], requires: [] },
+    wgsl: { name: "sdRegularPolygon", signature: "fn sdRegularPolygon(p: vec2f, r: f32, n: i32) -> f32", dependencies: ["PI", "dot2(vec2)"], requires: [] }
   },
   {
     id: "sdStar(vec2,float,int,float)",
@@ -10105,8 +10208,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Rhombus with half-diagonals b.",
     exactness: "exact",
     credits: ["quilez-articles"],
-    glsl: { name: "sdRhombus", signature: "float sdRhombus(vec2 p, vec2 b)", dependencies: [], requires: [] },
-    wgsl: { name: "sdRhombus", signature: "fn sdRhombus(p: vec2f, b: vec2f) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "sdRhombus", signature: "float sdRhombus(vec2 p, vec2 b)", dependencies: ["nmCraftAdd(float,float)", "dot2(vec2)"], requires: [] },
+    wgsl: { name: "sdRhombus", signature: "fn sdRhombus(p: vec2f, b: vec2f) -> f32", dependencies: ["nmCraftAdd(float,float)", "dot2(vec2)"], requires: [] }
   },
   {
     id: "sdEllipse(vec2,vec2)",
@@ -10115,8 +10218,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Ellipse with semi-axes r.",
     exactness: "approx",
     credits: ["quilez-articles"],
-    glsl: { name: "sdEllipse", signature: "float sdEllipse(vec2 p, vec2 r)", dependencies: [], requires: [] },
-    wgsl: { name: "sdEllipse", signature: "fn sdEllipse(p: vec2f, r: vec2f) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "sdEllipse", signature: "float sdEllipse(vec2 p, vec2 r)", dependencies: ["dot2(vec2)", "nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "sdEllipse", signature: "fn sdEllipse(p: vec2f, r: vec2f) -> f32", dependencies: ["dot2(vec2)", "nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "sdQuadraticBezier(vec2,vec2,vec2,vec2)",
@@ -10125,8 +10228,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Unsigned distance to a quadratic Bezier curve A-B-C.",
     exactness: "exact",
     credits: ["quilez-articles"],
-    glsl: { name: "sdQuadraticBezier", signature: "float sdQuadraticBezier(vec2 pos, vec2 A, vec2 B, vec2 C)", dependencies: ["dot2(vec2)", "sdSegment(vec2,vec2,vec2)"], requires: [] },
-    wgsl: { name: "sdQuadraticBezier_f2f2f2f2", signature: "fn sdQuadraticBezier_f2f2f2f2(pos: vec2f, A: vec2f, B: vec2f, C: vec2f) -> f32", dependencies: ["dot2(vec2)", "sdSegment(vec2,vec2,vec2)"], requires: [] }
+    glsl: { name: "sdQuadraticBezier", signature: "float sdQuadraticBezier(vec2 pos, vec2 A, vec2 B, vec2 C)", dependencies: ["dot2(vec2)", "sdSegment(vec2,vec2,vec2)", "nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "sdQuadraticBezier_f2f2f2f2", signature: "fn sdQuadraticBezier_f2f2f2f2(pos: vec2f, A: vec2f, B: vec2f, C: vec2f) -> f32", dependencies: ["dot2(vec2)", "sdSegment(vec2,vec2,vec2)", "nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "sdPie(vec2,vec2,float)",
@@ -10172,8 +10275,8 @@ var SHADER_CRAFT_LIBRARY = [
     summary: "Egg built from four tangent arcs (Moss-style): bottom radius ra, top cap radius rb.",
     exactness: "exact",
     credits: ["moss-egg"],
-    glsl: { name: "sdEgg", signature: "float sdEgg(vec2 p, float ra, float rb)", dependencies: [], requires: [] },
-    wgsl: { name: "sdEgg", signature: "fn sdEgg(p: vec2f, ra: f32, rb: f32) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "sdEgg", signature: "float sdEgg(vec2 p, float ra, float rb)", dependencies: ["dot2(vec2)"], requires: [] },
+    wgsl: { name: "sdEgg", signature: "fn sdEgg(p: vec2f, ra: f32, rb: f32) -> f32", dependencies: ["dot2(vec2)"], requires: [] }
   },
   {
     id: "opUnion(float,float)",
@@ -10569,8 +10672,8 @@ var SHADER_CRAFT_LIBRARY = [
     module: "intersect",
     summary: "Ray vs plane dot(p, n) + h = 0 (unit n).",
     credits: ["quilez-articles"],
-    glsl: { name: "iPlane", signature: "float iPlane(vec3 ro, vec3 rd, vec3 n, float h)", dependencies: [], requires: [] },
-    wgsl: { name: "iPlane", signature: "fn iPlane(ro: vec3f, rd: vec3f, n: vec3f, h: f32) -> f32", dependencies: [], requires: [] }
+    glsl: { name: "iPlane", signature: "float iPlane(vec3 ro, vec3 rd, vec3 n, float h)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "iPlane", signature: "fn iPlane(ro: vec3f, rd: vec3f, n: vec3f, h: f32) -> f32", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "iSphere(vec3,vec3,vec3,float)",
@@ -10845,8 +10948,8 @@ var SHADER_CRAFT_LIBRARY = [
     module: "color",
     summary: "Scale saturation around luminance: 0 = grey, 1 = unchanged, > 1 = more saturated.",
     credits: ["shader-skills"],
-    glsl: { name: "saturation", signature: "vec3 saturation(vec3 c, float s)", dependencies: ["luminance(vec3)"], requires: [] },
-    wgsl: { name: "saturation", signature: "fn saturation(c: vec3f, s: f32) -> vec3f", dependencies: ["luminance(vec3)"], requires: [] }
+    glsl: { name: "saturation", signature: "vec3 saturation(vec3 c, float s)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "saturation", signature: "fn saturation(c: vec3f, s: f32) -> vec3f", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "linearSrgbToOklab(vec3)",
@@ -10958,8 +11061,8 @@ var SHADER_CRAFT_LIBRARY = [
     module: "tonemap",
     summary: "Extended Reinhard on luminance: maps `white` to 1 and preserves hue.",
     credits: ["shader-skills"],
-    glsl: { name: "tonemapReinhard", signature: "vec3 tonemapReinhard(vec3 c, float white)", dependencies: [], requires: [] },
-    wgsl: { name: "tonemapReinhard", signature: "fn tonemapReinhard(c: vec3f, white: f32) -> vec3f", dependencies: [], requires: [] }
+    glsl: { name: "tonemapReinhard", signature: "vec3 tonemapReinhard(vec3 c, float white)", dependencies: ["nmCraftAdd(float,float)"], requires: [] },
+    wgsl: { name: "tonemapReinhard", signature: "fn tonemapReinhard(c: vec3f, white: f32) -> vec3f", dependencies: ["nmCraftAdd(float,float)"], requires: [] }
   },
   {
     id: "phaseIsotropic()",
@@ -11584,7 +11687,11 @@ float luminance(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
 /// Scale saturation around luminance: 0 = grey, 1 = unchanged, > 1 = more saturated.
 /// @use grading, fading distant objects, stylization
-vec3 saturation(vec3 c, float s) { return mix(vec3(luminance(c)), c, s); }
+vec3 saturation(vec3 c, float s) {
+    float l = nmCraftAdd(nmCraftAdd(c.x * 0.2126, c.y * 0.7152), c.z * 0.0722);
+    float grey = l * nmCraftAdd(1.0, -s);
+    return vec3(nmCraftAdd(grey, c.x * s), nmCraftAdd(grey, c.y * s), nmCraftAdd(grey, c.z * s));
+}
 
 /// Linear sRGB -> Oklab (L in [0,1], a/b around [-0.4, 0.4]). Matrices from Bjorn Ottosson (public domain / MIT).
 /// @use perceptual gradients, even-lightness palettes, hue and chroma edits
@@ -11675,7 +11782,11 @@ fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
 
 /// Scale saturation around luminance: 0 = grey, 1 = unchanged, > 1 = more saturated.
 /// @use grading, fading distant objects, stylization
-fn saturation(c: vec3f, s: f32) -> vec3f { return mix(vec3f(luminance(c)), c, s); }
+fn saturation(c: vec3f, s: f32) -> vec3f {
+    let l = nmCraftAdd(nmCraftAdd(c.x * 0.2126, c.y * 0.7152), c.z * 0.0722);
+    let grey = l * nmCraftAdd(1.0, -s);
+    return vec3f(nmCraftAdd(grey, c.x * s), nmCraftAdd(grey, c.y * s), nmCraftAdd(grey, c.z * s));
+}
 
 /// Linear sRGB -> Oklab (L in [0,1], a/b around [-0.4, 0.4]). Matrices from Bjorn Ottosson (public domain / MIT).
 /// @use perceptual gradients, even-lightness palettes, hue and chroma edits
@@ -11746,6 +11857,8 @@ var COMMON_GLSL = `//! common: constants, rotation, remapping and shaping functi
 //! Target: GLSL ES 3.00 as Noisemaker effects use it (WebGL2). Every function here is original and MIT licensed.
 //! Programs that use the library declare   precision highp float; precision highp int;   (the hashes need 32-bit uint).
 
+${PRECISION_GLSL}
+
 const float PI = 3.14159265358979;
 const float TAU = 6.28318530717959;
 
@@ -11756,7 +11869,7 @@ vec3 saturate(vec3 x) { return clamp(x, 0.0, 1.0); }
 
 /// Squared length.
 /// @use cheap distance comparisons, SDF internals
-float dot2(vec2 v) { return dot(v, v); }
+float dot2(vec2 v) { return nmCraftAdd(v.x * v.x, v.y * v.y); }
 float dot2(vec3 v) { return dot(v, v); }
 
 /// 2D rotation matrix. \`rot2(a) * v\` rotates v counter-clockwise by a radians.
@@ -11823,6 +11936,8 @@ var COMMON_WGSL = `//! common: constants, rotation, remapping and shaping functi
 //! Target: WGSL as Noisemaker effects use it (WebGPU); the twin of the GLSL module. Every function here is original
 //! and MIT licensed.
 
+${PRECISION_WGSL}
+
 const PI: f32 = 3.14159265358979;
 const TAU: f32 = 6.28318530717959;
 
@@ -11833,7 +11948,7 @@ fn saturate_f3(x: vec3f) -> vec3f { return clamp(x, vec3f(0.0), vec3f(1.0)); }
 
 /// Squared length.
 /// @use cheap distance comparisons, SDF internals
-fn dot2_f2(v: vec2f) -> f32 { return dot(v, v); }
+fn dot2_f2(v: vec2f) -> f32 { return nmCraftAdd(v.x * v.x, v.y * v.y); }
 fn dot2_f3(v: vec3f) -> f32 { return dot(v, v); }
 
 /// 2D rotation matrix. \`rot2(a) * v\` rotates v counter-clockwise by a radians.
@@ -12365,9 +12480,9 @@ var INTERSECT_GLSL = `//! intersect: analytic ray-primitive intersections. Rays 
 /// Ray vs plane dot(p, n) + h = 0 (unit n). Returns t, which is negative when the plane is behind the ray or parallel to it.
 /// @use floors, water, mirrors, clipping marches to a ground plane
 float iPlane(vec3 ro, vec3 rd, vec3 n, float h) {
-    float denom = dot(rd, n);
+    float denom = nmCraftAdd(nmCraftAdd(rd.x * n.x, rd.y * n.y), rd.z * n.z);
     if (abs(denom) < 1e-8) return -1.0;
-    return -(dot(ro, n) + h) / denom;
+    return -nmCraftAdd(nmCraftAdd(nmCraftAdd(ro.x * n.x, ro.y * n.y), ro.z * n.z), h) / denom;
 }
 
 /// Ray vs sphere centered at c with radius r. Returns vec2(tNear, tFar), or vec2(-1) on a miss.
@@ -12408,9 +12523,9 @@ var INTERSECT_WGSL = `//! intersect: analytic ray-primitive intersections. Rays 
 /// Ray vs plane dot(p, n) + h = 0 (unit n). Returns t, which is negative when the plane is behind the ray or parallel to it.
 /// @use floors, water, mirrors, clipping marches to a ground plane
 fn iPlane(ro: vec3f, rd: vec3f, n: vec3f, h: f32) -> f32 {
-    let denom = dot(rd, n);
+    let denom = nmCraftAdd(nmCraftAdd(rd.x * n.x, rd.y * n.y), rd.z * n.z);
     if (abs(denom) < 1e-8) { return -1.0; }
-    return -(dot(ro, n) + h) / denom;
+    return -nmCraftAdd(nmCraftAdd(nmCraftAdd(ro.x * n.x, ro.y * n.y), ro.z * n.z), h) / denom;
 }
 
 /// Ray vs sphere centered at c with radius r. Returns vec2f(tNear, tFar), or vec2f(-1) on a miss.
@@ -12897,7 +13012,7 @@ float hybridTerrainHeight(vec2 p, int octaves) {
 /// @range [0,1)
 /// @see Jimenez 2014, "Next Generation Post Processing in Call of Duty: Advanced Warfare"
 float interleavedGradientNoise(vec2 pixel) {
-    return fract(52.9829189 * fract(dot(pixel, vec2(0.06711056, 0.00583715))));
+    return fract(52.9829189 * fract(nmCraftAdd(pixel.x * 0.06711056, pixel.y * 0.00583715)));
 }
 float interleavedGradientNoise(vec2 pixel, int frame) {
     return interleavedGradientNoise(pixel + 5.588238 * float(frame % 64));
@@ -12908,7 +13023,7 @@ float interleavedGradientNoise(vec2 pixel, int frame) {
 /// @range [0,1)
 /// @see Martin Roberts, "The Unreasonable Effectiveness of Quasirandom Sequences"
 float r2Dither(vec2 pixel) {
-    float v = fract(dot(pixel, vec2(0.7548776662, 0.5698402910)));
+    float v = fract(nmCraftAdd(pixel.x * 0.7548776662, pixel.y * 0.5698402910));
     return v < 0.5 ? 2.0 * v : 2.0 - 2.0 * v;
 }
 `;
@@ -13411,7 +13526,7 @@ fn hybridTerrainHeight(p: vec2f, octaves: i32) -> f32 {
 /// @range [0,1)
 /// @see Jimenez 2014, "Next Generation Post Processing in Call of Duty: Advanced Warfare"
 fn interleavedGradientNoise_f2(pixel: vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(pixel, vec2f(0.06711056, 0.00583715))));
+    return fract(52.9829189 * fract(nmCraftAdd(pixel.x * 0.06711056, pixel.y * 0.00583715)));
 }
 fn interleavedGradientNoise_f2i(pixel: vec2f, frame: i32) -> f32 {
     return interleavedGradientNoise_f2(pixel + 5.588238 * f32(frame % 64));
@@ -13422,7 +13537,7 @@ fn interleavedGradientNoise_f2i(pixel: vec2f, frame: i32) -> f32 {
 /// @range [0,1)
 /// @see Martin Roberts, "The Unreasonable Effectiveness of Quasirandom Sequences"
 fn r2Dither(pixel: vec2f) -> f32 {
-    let v = fract(dot(pixel, vec2f(0.7548776662, 0.5698402910)));
+    let v = fract(nmCraftAdd(pixel.x * 0.7548776662, pixel.y * 0.5698402910));
     return select(2.0 - 2.0 * v, 2.0 * v, v < 0.5);
 }
 `;
@@ -13731,7 +13846,7 @@ vec4 hexGrid(vec2 p) {
 /// @use hex borders, bevels, edge wear on tiles
 float hexEdgeDistance(vec2 local) {
     vec2 a = abs(local);
-    return 0.5 - max(a.x, dot(a, vec2(0.5, 0.8660254)));
+    return 0.5 - max(a.x, nmCraftAdd(a.x * 0.5, a.y * 0.8660254));
 }
 
 /// Truchet tiling of quarter-circle arcs, randomly flipped per cell. Returns signed distance to arcs of half-width w.
@@ -13803,7 +13918,7 @@ fn hexGrid(p: vec2f) -> vec4f {
 /// @use hex borders, bevels, edge wear on tiles
 fn hexEdgeDistance(local: vec2f) -> f32 {
     let a = abs(local);
-    return 0.5 - max(a.x, dot(a, vec2f(0.5, 0.8660254)));
+    return 0.5 - max(a.x, nmCraftAdd(a.x * 0.5, a.y * 0.8660254));
 }
 
 /// Truchet tiling of quarter-circle arcs, randomly flipped per cell. Returns signed distance to arcs of half-width w.
@@ -14125,7 +14240,7 @@ float sdCircle(vec2 p, float r) { return length(p) - r; }
 /// @use panels, bars, windows, buttons, building silhouettes
 float sdBox(vec2 p, vec2 b) {
     vec2 d = abs(p) - b;
-    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+    return sqrt(dot2(max(d, 0.0))) + min(max(d.x, d.y), 0.0);
 }
 
 /// Rectangle with half-extents b and per-corner radii r = (top-right, bottom-right, top-left, bottom-left).
@@ -14165,7 +14280,7 @@ float sdUnevenCapsule(vec2 p, float r1, float r2, float h) {
 /// @use smiles, eyebrows, rainbows, gauges, progress rings, horseshoes
 float sdArc(vec2 p, vec2 sc, float ra, float rb) {
     p.x = abs(p.x);
-    return ((sc.y * p.x > sc.x * p.y) ? length(p - sc * ra) : abs(length(p) - ra)) - rb;
+    return ((sc.y * p.x > sc.x * p.y) ? sqrt(dot2(p - sc * ra)) : abs(sqrt(dot2(p)) - ra)) - rb;
 }
 
 /// Equilateral triangle with circumradius-like size r, pointing up.
@@ -14186,13 +14301,13 @@ float sdEquilateralTriangle(vec2 p, float r) {
 float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2) {
     vec2 e0 = p1 - p0, e1 = p2 - p1, e2 = p0 - p2;
     vec2 v0 = p - p0, v1 = p - p1, v2 = p - p2;
-    vec2 pq0 = v0 - e0 * clamp(dot(v0, e0) / dot(e0, e0), 0.0, 1.0);
-    vec2 pq1 = v1 - e1 * clamp(dot(v1, e1) / dot(e1, e1), 0.0, 1.0);
-    vec2 pq2 = v2 - e2 * clamp(dot(v2, e2) / dot(e2, e2), 0.0, 1.0);
+    vec2 pq0 = v0 - e0 * clamp(nmCraftAdd(v0.x * e0.x, v0.y * e0.y) / nmCraftAdd(e0.x * e0.x, e0.y * e0.y), 0.0, 1.0);
+    vec2 pq1 = v1 - e1 * clamp(nmCraftAdd(v1.x * e1.x, v1.y * e1.y) / nmCraftAdd(e1.x * e1.x, e1.y * e1.y), 0.0, 1.0);
+    vec2 pq2 = v2 - e2 * clamp(nmCraftAdd(v2.x * e2.x, v2.y * e2.y) / nmCraftAdd(e2.x * e2.x, e2.y * e2.y), 0.0, 1.0);
     float s = sign(e0.x * e2.y - e0.y * e2.x);
-    vec2 d = min(min(vec2(dot(pq0, pq0), s * (v0.x * e0.y - v0.y * e0.x)),
-                     vec2(dot(pq1, pq1), s * (v1.x * e1.y - v1.y * e1.x))),
-                     vec2(dot(pq2, pq2), s * (v2.x * e2.y - v2.y * e2.x)));
+    vec2 d = min(min(vec2(nmCraftAdd(pq0.x * pq0.x, pq0.y * pq0.y), s * (v0.x * e0.y - v0.y * e0.x)),
+                     vec2(nmCraftAdd(pq1.x * pq1.x, pq1.y * pq1.y), s * (v1.x * e1.y - v1.y * e1.x))),
+                     vec2(nmCraftAdd(pq2.x * pq2.x, pq2.y * pq2.y), s * (v2.x * e2.y - v2.y * e2.x)));
     return -sqrt(d.x) * sign(d.y);
 }
 
@@ -14202,13 +14317,13 @@ float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2) {
 float sdRegularPolygon(vec2 p, float r, int n) {
     float an = PI / float(n);
     vec2 acs = vec2(cos(an), sin(an));
-    float len = length(p);
+    float len = sqrt(dot2(p));
     if (len < 1e-12) return -r * acs.x;
     float bn = mod(atan(p.x, p.y), 2.0 * an) - an;
     p = len * vec2(cos(bn), abs(sin(bn)));
     p -= r * acs;
     p.y += clamp(-p.y, 0.0, r * acs.y);
-    return length(p) * sign(p.x);
+    return sqrt(dot2(p)) * sign(p.x);
 }
 
 /// Star with n points and outer radius r. m in [2, n] sets the inner angle: m = 2 is the spikiest and m = n is a regular n-gon.
@@ -14264,8 +14379,8 @@ float sdHeart(vec2 p) {
 float sdRhombus(vec2 p, vec2 b) {
     p = abs(p);
     vec2 t = b - 2.0 * p;
-    float h = clamp((t.x * b.x - t.y * b.y) / dot(b, b), -1.0, 1.0);
-    float d = length(p - 0.5 * b * vec2(1.0 - h, 1.0 + h));
+    float h = clamp((t.x * b.x - t.y * b.y) / nmCraftAdd(b.x * b.x, b.y * b.y), -1.0, 1.0);
+    float d = sqrt(dot2(p - 0.5 * b * vec2(1.0 - h, 1.0 + h)));
     return d * sign(p.x * b.y + p.y * b.x - b.x * b.y);
 }
 
@@ -14274,10 +14389,11 @@ float sdRhombus(vec2 p, vec2 b) {
 /// @approx
 /// @use eyes, pupils, ovals, shadows under objects, planet rings (with opOnion)
 float sdEllipse(vec2 p, vec2 r) {
-    float k0 = length(p / r);
-    float k1 = length(p / (r * r));
+    float k0 = sqrt(dot2(p / r));
+    float k1 = sqrt(dot2(p / (r * r)));
     if (k1 < 1e-8) return -min(r.x, r.y);
-    return k0 * (k0 - 1.0) / k1;
+    // Materialize the numerator before division to prevent reciprocal reassociation.
+    return nmCraftAdd(k0 * (k0 - 1.0), 0.0) / k1;
 }
 
 /// Unsigned distance to a quadratic Bezier curve A-B-C. Solves the closest-point cubic analytically.
@@ -14289,12 +14405,12 @@ float sdQuadraticBezier(vec2 pos, vec2 A, vec2 B, vec2 C) {
     vec2 b = A - 2.0 * B + C;
     vec2 c = a * 2.0;
     vec2 d = A - pos;
-    float bb = dot(b, b);
+    float bb = nmCraftAdd(b.x * b.x, b.y * b.y);
     if (bb < 1e-10) return sdSegment(pos, A, C);
     float kk = 1.0 / bb;
-    float kx = kk * dot(a, b);
-    float ky = kk * (2.0 * dot(a, a) + dot(d, b)) / 3.0;
-    float kz = kk * dot(d, a);
+    float kx = kk * nmCraftAdd(a.x * b.x, a.y * b.y);
+    float ky = kk * (2.0 * nmCraftAdd(a.x * a.x, a.y * a.y) + nmCraftAdd(d.x * b.x, d.y * b.y)) / 3.0;
+    float kz = kk * nmCraftAdd(d.x * a.x, d.y * a.y);
     float pp = ky - kx * kx;
     float q = kx * (2.0 * kx * kx - 3.0 * ky) + kz;
     float h = q * q + 4.0 * pp * pp * pp;
@@ -14374,10 +14490,10 @@ float sdParabolaSegment(vec2 p, float w, float h) {
 float sdEgg(vec2 p, float ra, float rb) {
     p.x = abs(p.x);
     float c = sqrt((2.0 * ra - rb) * (2.0 * ra - rb) - ra * ra);   // height of the cap center
-    if (p.y < 0.0) return length(p) - ra;
+    if (p.y < 0.0) return sqrt(dot2(p)) - ra;
     // past the line from the right arc's center (-ra, 0) through the cap center, the cap is nearest
-    if (ra * p.y > c * (p.x + ra)) return length(p - vec2(0.0, c)) - rb;
-    return length(p + vec2(ra, 0.0)) - 2.0 * ra;
+    if (ra * p.y > c * (p.x + ra)) return sqrt(dot2(p - vec2(0.0, c))) - rb;
+    return sqrt(dot2(p + vec2(ra, 0.0))) - 2.0 * ra;
 }
 `;
 var SDF2D_WGSL = `//! sdf2d: 2D signed distance primitives for posters, icons, UI, motion graphics, and as profiles for
@@ -14396,7 +14512,7 @@ fn sdCircle(p: vec2f, r: f32) -> f32 { return length(p) - r; }
 /// @use panels, bars, windows, buttons, building silhouettes
 fn sdBox_f2f2(p: vec2f, b: vec2f) -> f32 {
     let d = abs(p) - b;
-    return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0);
+    return sqrt(dot2_f2(max(d, vec2f(0.0)))) + min(max(d.x, d.y), 0.0);
 }
 
 /// Rectangle with half-extents b and per-corner radii r = (top-right, bottom-right, top-left, bottom-left).
@@ -14440,7 +14556,7 @@ fn sdUnevenCapsule(p: vec2f, r1: f32, r2: f32, h: f32) -> f32 {
 fn sdArc(p: vec2f, sc: vec2f, ra: f32, rb: f32) -> f32 {
     var p_ = p;
     p_.x = abs(p_.x);
-    return select(abs(length(p_) - ra), length(p_ - sc * ra), sc.y * p_.x > sc.x * p_.y) - rb;
+    return select(abs(sqrt(dot2_f2(p_)) - ra), sqrt(dot2_f2(p_ - sc * ra)), sc.y * p_.x > sc.x * p_.y) - rb;
 }
 
 /// Equilateral triangle with circumradius-like size r, pointing up.
@@ -14466,13 +14582,13 @@ fn sdTriangle(p: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32 {
     let v0 = p - p0;
     let v1 = p - p1;
     let v2 = p - p2;
-    let pq0 = v0 - e0 * clamp(dot(v0, e0) / dot(e0, e0), 0.0, 1.0);
-    let pq1 = v1 - e1 * clamp(dot(v1, e1) / dot(e1, e1), 0.0, 1.0);
-    let pq2 = v2 - e2 * clamp(dot(v2, e2) / dot(e2, e2), 0.0, 1.0);
+    let pq0 = v0 - e0 * clamp(nmCraftAdd(v0.x * e0.x, v0.y * e0.y) / nmCraftAdd(e0.x * e0.x, e0.y * e0.y), 0.0, 1.0);
+    let pq1 = v1 - e1 * clamp(nmCraftAdd(v1.x * e1.x, v1.y * e1.y) / nmCraftAdd(e1.x * e1.x, e1.y * e1.y), 0.0, 1.0);
+    let pq2 = v2 - e2 * clamp(nmCraftAdd(v2.x * e2.x, v2.y * e2.y) / nmCraftAdd(e2.x * e2.x, e2.y * e2.y), 0.0, 1.0);
     let s = sign(e0.x * e2.y - e0.y * e2.x);
-    let d = min(min(vec2f(dot(pq0, pq0), s * (v0.x * e0.y - v0.y * e0.x)),
-                    vec2f(dot(pq1, pq1), s * (v1.x * e1.y - v1.y * e1.x))),
-                    vec2f(dot(pq2, pq2), s * (v2.x * e2.y - v2.y * e2.x)));
+    let d = min(min(vec2f(nmCraftAdd(pq0.x * pq0.x, pq0.y * pq0.y), s * (v0.x * e0.y - v0.y * e0.x)),
+                    vec2f(nmCraftAdd(pq1.x * pq1.x, pq1.y * pq1.y), s * (v1.x * e1.y - v1.y * e1.x))),
+                    vec2f(nmCraftAdd(pq2.x * pq2.x, pq2.y * pq2.y), s * (v2.x * e2.y - v2.y * e2.x)));
     return -sqrt(d.x) * sign(d.y);
 }
 
@@ -14482,7 +14598,7 @@ fn sdTriangle(p: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32 {
 fn sdRegularPolygon(p: vec2f, r: f32, n: i32) -> f32 {
     let an = PI / f32(n);
     let acs = vec2f(cos(an), sin(an));
-    let len = length(p);
+    let len = sqrt(dot2_f2(p));
     if (len < 1e-12) { return -r * acs.x; }
     let angle = atan2(p.x, p.y);
     let period = 2.0 * an;
@@ -14490,7 +14606,7 @@ fn sdRegularPolygon(p: vec2f, r: f32, n: i32) -> f32 {
     var p_ = len * vec2f(cos(bn), abs(sin(bn)));
     p_ -= r * acs;
     p_.y += clamp(-p_.y, 0.0, r * acs.y);
-    return length(p_) * sign(p_.x);
+    return sqrt(dot2_f2(p_)) * sign(p_.x);
 }
 
 /// Star with n points and outer radius r. m in [2, n] sets the inner angle: m = 2 is the spikiest and m = n is a regular n-gon.
@@ -14549,8 +14665,8 @@ fn sdHeart(p: vec2f) -> f32 {
 fn sdRhombus(p: vec2f, b: vec2f) -> f32 {
     let p_ = abs(p);
     let t = b - 2.0 * p_;
-    let h = clamp((t.x * b.x - t.y * b.y) / dot(b, b), -1.0, 1.0);
-    let d = length(p_ - 0.5 * b * vec2f(1.0 - h, 1.0 + h));
+    let h = clamp((t.x * b.x - t.y * b.y) / nmCraftAdd(b.x * b.x, b.y * b.y), -1.0, 1.0);
+    let d = sqrt(dot2_f2(p_ - 0.5 * b * vec2f(1.0 - h, 1.0 + h)));
     return d * sign(p_.x * b.y + p_.y * b.x - b.x * b.y);
 }
 
@@ -14559,10 +14675,11 @@ fn sdRhombus(p: vec2f, b: vec2f) -> f32 {
 /// @approx
 /// @use eyes, pupils, ovals, shadows under objects, planet rings (with opOnion)
 fn sdEllipse(p: vec2f, r: vec2f) -> f32 {
-    let k0 = length(p / r);
-    let k1 = length(p / (r * r));
+    let k0 = sqrt(dot2_f2(p / r));
+    let k1 = sqrt(dot2_f2(p / (r * r)));
     if (k1 < 1e-8) { return -min(r.x, r.y); }
-    return k0 * (k0 - 1.0) / k1;
+    // Materialize the numerator before division to prevent reciprocal reassociation.
+    return nmCraftAdd(k0 * (k0 - 1.0), 0.0) / k1;
 }
 
 /// Unsigned distance to a quadratic Bezier curve A-B-C. Solves the closest-point cubic analytically.
@@ -14574,12 +14691,12 @@ fn sdQuadraticBezier_f2f2f2f2(pos: vec2f, A: vec2f, B: vec2f, C: vec2f) -> f32 {
     let b = A - 2.0 * B + C;
     let c = a * 2.0;
     let d = A - pos;
-    let bb = dot(b, b);
+    let bb = nmCraftAdd(b.x * b.x, b.y * b.y);
     if (bb < 1e-10) { return sdSegment(pos, A, C); }
     let kk = 1.0 / bb;
-    let kx = kk * dot(a, b);
-    let ky = kk * (2.0 * dot(a, a) + dot(d, b)) / 3.0;
-    let kz = kk * dot(d, a);
+    let kx = kk * nmCraftAdd(a.x * b.x, a.y * b.y);
+    let ky = kk * (2.0 * nmCraftAdd(a.x * a.x, a.y * a.y) + nmCraftAdd(d.x * b.x, d.y * b.y)) / 3.0;
+    let kz = kk * nmCraftAdd(d.x * a.x, d.y * a.y);
     let pp = ky - kx * kx;
     let q = kx * (2.0 * kx * kx - 3.0 * ky) + kz;
     var h = q * q + 4.0 * pp * pp * pp;
@@ -14663,10 +14780,10 @@ fn sdEgg(p: vec2f, ra: f32, rb: f32) -> f32 {
     var p_ = p;
     p_.x = abs(p_.x);
     let c = sqrt((2.0 * ra - rb) * (2.0 * ra - rb) - ra * ra);   // height of the cap center
-    if (p_.y < 0.0) { return length(p_) - ra; }
+    if (p_.y < 0.0) { return sqrt(dot2_f2(p_)) - ra; }
     // past the line from the right arc's center (-ra, 0) through the cap center, the cap is nearest
-    if (ra * p_.y > c * (p_.x + ra)) { return length(p_ - vec2f(0.0, c)) - rb; }
-    return length(p_ + vec2f(ra, 0.0)) - 2.0 * ra;
+    if (ra * p_.y > c * (p_.x + ra)) { return sqrt(dot2_f2(p_ - vec2f(0.0, c))) - rb; }
+    return sqrt(dot2_f2(p_ + vec2f(ra, 0.0))) - 2.0 * ra;
 }
 `;
 
@@ -14683,7 +14800,7 @@ var SDF3D_GLSL = `//! sdf3d: 3D signed distance primitives. Each one is centered
 /// Sphere of radius r.
 /// @exact
 /// @use heads, eyes, fruit, planets, bubbles, joints
-float sdSphere(vec3 p, float r) { return length(p) - r; }
+float sdSphere(vec3 p, float r) { return nmCraftAdd(sqrt(nmCraftAdd(nmCraftAdd(p.x * p.x, p.y * p.y), p.z * p.z)), -r); }
 
 /// Axis-aligned box with half-extents b.
 /// @exact
@@ -14928,7 +15045,7 @@ var SDF3D_WGSL = `//! sdf3d: 3D signed distance primitives. Each one is centered
 /// Sphere of radius r.
 /// @exact
 /// @use heads, eyes, fruit, planets, bubbles, joints
-fn sdSphere(p: vec3f, r: f32) -> f32 { return length(p) - r; }
+fn sdSphere(p: vec3f, r: f32) -> f32 { return nmCraftAdd(sqrt(nmCraftAdd(nmCraftAdd(p.x * p.x, p.y * p.y), p.z * p.z)), -r); }
 
 /// Axis-aligned box with half-extents b.
 /// @exact
@@ -15440,8 +15557,8 @@ vec3 tonemapACES(vec3 c) {
 /// @use quick previews, soft low-contrast looks
 vec3 tonemapReinhard(vec3 c, float white) {
     c = max(c, 0.0);
-    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    float lt = l * (1.0 + l / (white * white)) / (1.0 + l);
+    float l = nmCraftAdd(nmCraftAdd(c.x * 0.2126, c.y * 0.7152), c.z * 0.0722);
+    float lt = l * nmCraftAdd(1.0, l / (white * white)) / nmCraftAdd(1.0, l);
     return clamp(c * (lt / max(l, 1e-6)), 0.0, 1.0);
 }
 `;
@@ -15534,8 +15651,8 @@ fn tonemapACES(c: vec3f) -> vec3f {
 /// @use quick previews, soft low-contrast looks
 fn tonemapReinhard(c: vec3f, white: f32) -> vec3f {
     let c_ = max(c, vec3f(0.0));
-    let l = dot(c_, vec3f(0.2126, 0.7152, 0.0722));
-    let lt = l * (1.0 + l / (white * white)) / (1.0 + l);
+    let l = nmCraftAdd(nmCraftAdd(c_.x * 0.2126, c_.y * 0.7152), c_.z * 0.0722);
+    let lt = l * nmCraftAdd(1.0, l / (white * white)) / nmCraftAdd(1.0, l);
     return clamp(c_ * (lt / max(l, 1e-6)), vec3f(0.0), vec3f(1.0));
 }
 `;
@@ -17333,6 +17450,16 @@ function bundleShaderSource(source2, language) {
   const macros = new Set(items.filter((item) => item.directive === "define").map((item) => item.name));
   const own = (id) => {
     const e = byId.get(id);
+    if (e.internal) {
+      const normalized = (text) => tokenize2(text, language).map((token) => token.text).join(" ");
+      if (macros.has(e[language].name)) throw new Error(`Cannot override internal shader helper ${e[language].name}`);
+      for (const item of items.filter((item2) => item2.name === e[language].name)) {
+        const expected = item.kind === "prototype" ? `${e[language].signature};` : getShaderCraftSymbolSource(id, language);
+        if (item.depth !== 0 || !["function", "prototype"].includes(item.kind) || normalized(source2.slice(item.start, item.end)) !== normalized(expected)) {
+          throw new Error(`Cannot override internal shader helper ${e[language].name}`);
+        }
+      }
+    }
     return language === "glsl" && macros.has(e.glsl.name) || definitions.has(language === "glsl" && e.kind === "function" ? e.id : e[language].name);
   };
   const byName = /* @__PURE__ */ new Map();
@@ -17363,9 +17490,10 @@ function bundleShaderSource(source2, language) {
       include(entry.id);
     }
   });
-  const added = SHADER_CRAFT_LIBRARY.filter((e) => required.has(e.id)).map((e) => e.id);
-  if (!added.length) return { source: source2, added: [], credits: [] };
-  const requires = new Set(added.flatMap((id) => byId.get(id)[language].requires));
+  const emitted = SHADER_CRAFT_LIBRARY.filter((e) => required.has(e.id)).map((e) => e.id);
+  const added = emitted.filter((id) => !byId.get(id).internal);
+  if (!emitted.length) return { source: source2, added: [], credits: [] };
+  const requires = new Set(emitted.flatMap((id) => byId.get(id)[language].requires));
   for (const name of requires) {
     if (!definedNames.has(name)) throw new Error(`Shader-craft requires program symbol ${name}: ${SHADER_CRAFT_LIBRARY_PROGRAM_SYMBOLS.find((p) => p.name === name)?.[language]}`);
   }
@@ -17375,19 +17503,19 @@ function bundleShaderSource(source2, language) {
   const credits = [...new Set(added.flatMap((id) => byId.get(id).credits))];
   const oldBlock = findCreditBlock(source2);
   const oldIds = oldBlock ? includedSymbolIds(source2.slice(oldBlock.start, oldBlock.end)) : [];
-  const allIds = SHADER_CRAFT_LIBRARY.filter((e) => oldIds.includes(e.id) || required.has(e.id)).map((e) => e.id);
+  const allIds = SHADER_CRAFT_LIBRARY.filter((e) => !e.internal && (oldIds.includes(e.id) || required.has(e.id))).map((e) => e.id);
   const allCredits = new Set(allIds.flatMap((id) => byId.get(id).credits));
-  const header = `/* shader-craft credits
+  const header = allIds.length ? `/* shader-craft credits
 ${SHADER_CRAFT_CREDITS.adaptedFrom}
 Included symbols: ${JSON.stringify(allIds)}
-` + SHADER_CRAFT_CREDITS.techniques.filter((c) => allCredits.has(c.key)).map((c) => `${c.key}: ${c.source}; ${c.terms}.`).join("\n") + "\n*/";
+` + SHADER_CRAFT_CREDITS.techniques.filter((c) => allCredits.has(c.key)).map((c) => `${c.key}: ${c.source}; ${c.terms}.`).join("\n") + "\n*/" : "";
   const firstFunction = items.find((item) => item.kind === "function");
   let cut = firstFunction?.start ?? source2.length;
   if (firstFunction?.depth) {
     const opening = items.find((item) => item.start < cut && item.depth === 0 && ["if", "ifdef", "ifndef"].includes(item.directive ?? ""));
     if (opening) cut = opening.start;
   }
-  const addedNames = new Set(added.map((id) => byId.get(id)[language].name));
+  const addedNames = new Set(emitted.map((id) => byId.get(id)[language].name));
   if (language === "glsl") for (const item of items) {
     if (item.start >= cut) break;
     if (item.kind === "declaration" && !["precision", "uniform", "in", "out", "layout"].includes(item.storage ?? "") && item.name !== "ZERO" && tokens.slice(item.first, item.last + 1).some((t) => addedNames.has(t.text))) {
@@ -17399,7 +17527,7 @@ Included symbols: ${JSON.stringify(allIds)}
     const zero = items.find((i2) => i2.name === "ZERO");
     if (zero.start >= cut) throw new Error("Define ZERO in the GLSL preamble before the first function or library-dependent initializer.");
   }
-  const dependencies = new Set(added.flatMap((id) => byId.get(id)[language].dependencies));
+  const dependencies = new Set(emitted.flatMap((id) => byId.get(id)[language].dependencies));
   const callerPrototypes = [];
   if (language === "glsl") for (const item of items) {
     if (item.kind !== "function" || item.start < cut || macros.has(item.name)) continue;
@@ -17409,7 +17537,7 @@ Included symbols: ${JSON.stringify(allIds)}
     callerPrototypes.push(source2.slice(item.start, tokens[item.bodyOpen].start).trim() + ";");
   }
   const prototype = callerPrototypes.join("\n") + (callerPrototypes.length ? "\n\n" : "") + (language === "glsl" && requires.has("map") && !items.some((i2) => i2.kind === "prototype" && i2.name === "map" && i2.start < cut) ? "vec2 map(vec3 p);\n\n" : "");
-  const library = added.map((id) => getShaderCraftSymbolSource(id, language)).join("\n\n");
+  const library = emitted.map((id) => getShaderCraftSymbolSource(id, language)).join("\n\n");
   let result = source2.slice(0, cut) + "\n" + (oldBlock ? "" : header + "\n\n") + prototype + library + "\n\n" + source2.slice(cut);
   const merged = oldBlock && findCreditBlock(result);
   if (merged) result = result.slice(0, merged.start) + header + result.slice(merged.end);
@@ -26909,7 +27037,7 @@ function searchShaderLibrary(query, options = {}) {
   const language = options.language ?? "glsl", words = query.toLowerCase().match(/[\w]+/g) ?? [];
   const limit = Number.isFinite(options.limit) ? Math.max(0, Math.floor(options.limit)) : 15;
   if (!words.length || !limit) return [];
-  return SHADER_CRAFT_LIBRARY.map((e) => {
+  return SHADER_CRAFT_LIBRARY.filter((e) => !e.internal).map((e) => {
     const name = e[language].name.toLowerCase(), text = `${e[language].signature} ${e.summary} ${e.module}`.toLowerCase();
     const score = (e.kind === "function" ? 0.1 : 0) + words.reduce((score2, word) => score2 + (name === word ? 10 : name.includes(word) ? 5 : 0) + (text.includes(word) ? 1 : 0), 0);
     return { score, result: { id: e.id, language, name: e[language].name, signature: e[language].signature, summary: e.summary, module: e.module } };
