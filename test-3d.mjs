@@ -245,14 +245,18 @@ try {
                 output: Array.from(output.data),
                 frame: Array.from(frame.data), passthrough: Array.from(passthrough.data) };
         });
-        // render3d declares no geometry input, so the forwarded geometry is
-        // observed at a renderer that reads it: the same chain into
-        // renderLandscape3d. The original program is compiled again after.
+        // render3d declares no geometry input, so the geometry carried past the
+        // filter is observed at a renderer that reads it: the same chain into
+        // renderLandscape3d. The chain carries shape3d's geometry past an
+        // effect that declares no geometry of its own; this checks that it
+        // still reaches the consumer through the Portable filter. The original
+        // program is compiled again after.
         const forwarded = await page.evaluate(async (dsl) => {
             const r = window.__portableCanvasRenderer;
             const original = r.currentDsl;
             // The viewer loads only the effects of its own program.
             await r.loadEffects(['render/renderLandscape3d']);
+            let failure = null;
             try {
                 await r.compile(dsl);
                 r.stop(); await r.render(0);
@@ -260,17 +264,29 @@ try {
                 const consumer = p.graph.passes.find(pass => pass.inputs.analyticalGeo);
                 const geometryId = consumer?.inputs.analyticalGeo;
                 const geometry = geometryId && await p.backend.readPixels(geometryId);
+                const filter = p.graph.passes.find(pass => pass.effectKey === 'user.volumeColor3d');
                 return { geometryId, geometry: geometry && Array.from(geometry.data),
-                    producers: p.graph.passes.filter(pass => pass !== consumer && Object.values(pass.outputs).includes(geometryId)).map(pass => pass.effectKey) };
+                    producers: p.graph.passes.filter(pass => pass !== consumer && Object.values(pass.outputs).includes(geometryId)).map(pass => pass.effectKey),
+                    filterFeedsConsumer: !!filter && Object.values(filter.outputs).includes(consumer?.inputs.volumeCache) };
+            } catch (error) {
+                failure = error;
+                throw error;
             } finally {
-                await r.compile(original);
-                r.stop(); await r.render(0);
+                // Restore the viewer's program; a failure to restore does not
+                // hide the failure it follows.
+                try {
+                    await r.compile(original);
+                    r.stop(); await r.render(0);
+                } catch (error) {
+                    if (!failure) throw error;
+                }
             }
         }, GEOMETRY_CONSUMER_DSL);
         assert.equal(filtered.width, 16, 'filter inherits volume width');
         assert.equal(filtered.height, 256, 'filter inherits atlas height');
         assert(forwarded.geometry?.some((v,i) => i % 4 === 3 && v > 0), 'upstream analytical geometry reaches renderer');
         assert(forwarded.producers.length > 0, 'forwarded geometry is produced upstream');
+        assert(forwarded.filterFeedsConsumer, 'the Portable filter sits between the geometry producer and its consumer');
         assert.deepEqual(filtered.output.filter((_,i) => i % 4 === 0 || i % 4 === 3),
             filtered.input.filter((_,i) => i % 4 === 0 || i % 4 === 3), 'filter preserves density and alpha');
         assert(filtered.output.some((v,i) => v !== filtered.input[i]), 'tint modifies voxel colors');
