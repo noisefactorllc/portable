@@ -22450,8 +22450,8 @@ async function prepareLeg(session) {
   }, session.globals);
   await session.page.evaluate(installProgramRebuild, { globals: session.globals, timeout: session.timeoutMs });
 }
-async function captureSurface(session, seed, frames2) {
-  return await session.page.evaluate(async ({ globals, seed: seed2, frames: frames3 }) => {
+async function captureSurface(session, seed2, frames2) {
+  return await session.page.evaluate(async ({ globals, seed: seed3, frames: frames3 }) => {
     const w = window;
     if (w[globals.setPaused]) w[globals.setPaused](true);
     const r = w[globals.canvasRenderer];
@@ -22469,8 +22469,8 @@ async function captureSurface(session, seed, frames2) {
     if (w[globals.setPausedTime]) w[globals.setPausedTime](0);
     const p = w[globals.renderingPipeline];
     if (!p) return null;
-    if (p.globalUniforms) p.globalUniforms.seed = seed2;
-    for (const pass of p.graph?.passes || []) if (pass.uniforms) pass.uniforms.seed = seed2;
+    if (p.globalUniforms) p.globalUniforms.seed = seed3;
+    for (const pass of p.graph?.passes || []) if (pass.uniforms) pass.uniforms.seed = seed3;
     const b = p.backend;
     if (!b || !b.readPixels || !b.textures) return null;
     const surf = p.graph?.renderSurface;
@@ -22515,11 +22515,11 @@ async function captureSurface(session, seed, frames2) {
       data2 = flipped;
     }
     return { data: Array.from(data2), width: px.width, height: px.height, stateReset };
-  }, { globals: session.globals, seed, frames: frames2 });
+  }, { globals: session.globals, seed: seed2, frames: frames2 });
 }
 async function testPixelParity(session, effectId, options = {}) {
   const epsilon = options.epsilon ?? 1;
-  const seed = options.seed ?? 42;
+  const seed2 = options.seed ?? 42;
   const parityError = (leg2, problem2, backend, pageEffectId, resolution2) => ({
     status: "error",
     maxDiff: 0,
@@ -22542,7 +22542,7 @@ async function testPixelParity(session, effectId, options = {}) {
   let leg = await session.selectEffect(effectId);
   let problem = legProblem(leg, "webgl2");
   if (problem) return parityError("WebGL2 leg", problem, leg.backend, leg.effectId, [0, 0]);
-  const glslCapture = await captureSurface(session, seed, PARITY_FRAMES);
+  const glslCapture = await captureSurface(session, seed2, PARITY_FRAMES);
   if (!glslCapture) {
     return parityError("WebGL2 leg", "Failed to capture WebGL2", leg.backend, leg.effectId, [0, 0]);
   }
@@ -22557,7 +22557,7 @@ async function testPixelParity(session, effectId, options = {}) {
   leg = await session.selectEffect(effectId);
   problem = legProblem(leg, "webgpu");
   if (problem) return parityError("WebGPU leg", problem, leg.backend, leg.effectId, [glslPixels.width, glslPixels.height]);
-  const wgslCapture = await captureSurface(session, seed, PARITY_FRAMES);
+  const wgslCapture = await captureSurface(session, seed2, PARITY_FRAMES);
   await session.page.evaluate((globals) => {
     const w2 = window;
     if (w2[globals.setPaused]) w2[globals.setPaused](false);
@@ -22715,9 +22715,9 @@ var runDslProgramSchema = {
   capture_image: external_exports.boolean().optional().describe("Legacy option; the grid is always returned as an image"),
   uniforms: external_exports.record(external_exports.string(), external_exports.number().finite()).optional().describe("Values that override uniforms")
 };
-async function runDslProgram(session, dsl, options = {}) {
+async function runDslProgram(session, dsl2, options = {}) {
   const input2 = external_exports.object(runDslProgramSchema).parse({
-    dsl,
+    dsl: dsl2,
     effects: options.effects,
     backend: session.backend,
     warmup_frames: options.warmupFrames,
@@ -22743,7 +22743,7 @@ async function runDslProgram(session, dsl, options = {}) {
     let timer;
     try {
       const batch = await Promise.race([
-        page.evaluate(async ({ rendererModule, assetsBase, useBundles, effectUrls, dsl: dsl2, backend, width: width2, height: height2, cellWidth: cellWidth2, cellHeight: cellHeight2, captureFrames: captureFrames2, warmupFrames: warmupFrames2, uniforms }) => {
+        page.evaluate(async ({ rendererModule, assetsBase, useBundles, effectUrls, dsl: dsl3, backend, width: width2, height: height2, cellWidth: cellWidth2, cellHeight: cellHeight2, captureFrames: captureFrames2, warmupFrames: warmupFrames2, uniforms }) => {
           const { CanvasRenderer, compile: compile2 } = await import(rendererModule);
           const canvas = document.createElement("canvas");
           canvas.width = width2;
@@ -22791,14 +22791,14 @@ async function runDslProgram(session, dsl, options = {}) {
               }
               await renderer.registerPortableEffect(definition);
             }
-            await renderer.compile(dsl2);
+            await renderer.compile(dsl3);
             renderer.stop();
             const pipeline = renderer.pipeline;
             const actualBackend = pipeline.backend.getName?.() || "unknown";
             if (actualBackend.toLowerCase() !== backend) {
               throw new Error(`Requested backend ${backend}, renderer used ${actualBackend}`);
             }
-            const compiled = compile2(dsl2);
+            const compiled = compile2(dsl3);
             const written = /* @__PURE__ */ new Set();
             const visit2 = (value) => {
               if (!value || typeof value !== "object") return;
@@ -22849,7 +22849,7 @@ async function runDslProgram(session, dsl, options = {}) {
             const lastFrame = warmupFrames2 + captureFrames2.at(-1);
             for (let absoluteFrame = 1; absoluteFrame <= lastFrame; absoluteFrame++) {
               const previousFrame = renderer.frameCount;
-              renderer.render(absoluteFrame / 60 % 10 / 10);
+              await renderer.render(absoluteFrame / 60 % 10 / 10);
               if (renderFailure) throw new Error(`Render failed at frame ${absoluteFrame}: ${renderFailure}`);
               if (renderer.frameCount !== previousFrame + 1) {
                 throw new Error(`Renderer did not advance at frame ${absoluteFrame}`);
@@ -22913,7 +22913,7 @@ async function runDslProgram(session, dsl, options = {}) {
           assetsBase: config3.dslAssetsBase.startsWith("/") ? `${getServerUrl()}${config3.dslAssetsBase}` : config3.dslAssetsBase,
           useBundles: config3.dslUseBundles,
           effectUrls: effectIds.map((id) => `${getServerUrl()}/effects/${id}`),
-          dsl,
+          dsl: dsl2,
           backend: session.backend,
           width,
           height,
@@ -22975,6 +22975,110 @@ function registerRunDslProgram(server2) {
         await session.teardown();
       }
     }
+  );
+}
+
+// src/tools/browser/seed.ts
+import { webcrypto } from "crypto";
+var MAX_SEED = 4294967295;
+var dsl = external_exports.string().min(1).max(1e5).describe("Noisemaker DSL program");
+var seed = external_exports.number().int().min(0).max(MAX_SEED).describe("Program seed, a whole number from 0 to 4294967295");
+var getProgramSeedSchema = { dsl };
+var setProgramSeedSchema = { dsl, seed };
+var reseedProgramSchema = { dsl };
+function freshSeed() {
+  return webcrypto.getRandomValues(new Uint32Array(1))[0];
+}
+async function runSeedOperation(session, program, newSeed) {
+  const input2 = external_exports.object({ dsl, seed: seed.optional() }).parse({ dsl: program, seed: newSeed });
+  const config3 = getConfig();
+  return session.runWithConsoleCapture(async () => {
+    const page = session.page;
+    let timer;
+    try {
+      return await Promise.race([
+        page.evaluate(async ({ rendererModule, assetsBase, useBundles, dsl: dsl2, seed: seed2 }) => {
+          const { CanvasRenderer } = await import(rendererModule);
+          const canvas = document.createElement("canvas");
+          canvas.width = 16;
+          canvas.height = 16;
+          let renderer = null;
+          try {
+            renderer = new CanvasRenderer({
+              canvas,
+              width: 16,
+              height: 16,
+              basePath: assetsBase,
+              bundlePath: `${assetsBase}/effects`,
+              useBundles
+            });
+            if (typeof renderer.getSeed !== "function" || typeof renderer.setSeed !== "function") {
+              throw new Error("Configured Noisemaker renderer does not support getSeed/setSeed; use a Noisemaker 2 renderer with the seed API");
+            }
+            const manifest = await renderer.loadManifest();
+            await renderer.loadEffects(Object.keys(manifest));
+            if (seed2 === void 0) {
+              renderer.currentDsl = dsl2;
+              return { status: "ok", seed: renderer.getSeed() };
+            }
+            await renderer.compile(dsl2);
+            await renderer.setSeed(seed2);
+            return { status: "ok", seed: renderer.getSeed(), dsl: renderer.currentDsl };
+          } catch (error62) {
+            const diagnostics = Array.isArray(error62?.diagnostics) ? error62.diagnostics.filter((d) => !d?.severity || d.severity === "error").map((d) => {
+              const text = [d?.code, d?.message].filter(Boolean).join(": ");
+              return text && d?.location ? `${text} (line ${d.location.line}, col ${d.location.column})` : text;
+            }).filter(Boolean).join("; ") : "";
+            const errors = Array.isArray(error62?.errors) ? error62.errors.map((e) => e?.message || String(e)).filter(Boolean).join("; ") : "";
+            return { status: "error", error: error62?.message || diagnostics || errors || error62?.detail || JSON.stringify(error62) || String(error62) };
+          } finally {
+            await renderer?.dispose?.().catch(() => {
+            });
+            canvas.remove();
+          }
+        }, {
+          rendererModule: config3.dslRendererModule.startsWith("/") ? `${getServerUrl()}${config3.dslRendererModule}` : config3.dslRendererModule,
+          assetsBase: config3.dslAssetsBase.startsWith("/") ? `${getServerUrl()}${config3.dslAssetsBase}` : config3.dslAssetsBase,
+          useBundles: config3.dslUseBundles,
+          dsl: input2.dsl,
+          seed: input2.seed
+        }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Seed call timed out after ${session.timeoutMs} ms`)), session.timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  });
+}
+async function withSession(fn) {
+  const session = new BrowserSession({ backend: "webgl2", blankPage: true });
+  try {
+    await session.setup();
+    return await fn(session);
+  } finally {
+    await session.teardown();
+  }
+}
+function registerSeedTools(server2) {
+  server2.tool(
+    "getProgramSeed",
+    "Read a Noisemaker DSL program's seed: the value of its seed directive, or null when it has none (it then draws from 0). It reads the directive without compiling or checking the program. Needs a Noisemaker 2 renderer.",
+    getProgramSeedSchema,
+    async (args) => toolResult(await withSession((session) => runSeedOperation(session, args.dsl)))
+  );
+  server2.tool(
+    "setProgramSeed",
+    "Set a Noisemaker DSL program's seed and return the seed and the program with its seed directive written or replaced. The whole program comes back as the engine's unparser writes it: comments before the search directive are dropped, and literal values are written as compiled, while random calls stay as written. Built-in effects only. Needs a Noisemaker 2 renderer.",
+    setProgramSeedSchema,
+    async (args) => toolResult(await withSession((session) => runSeedOperation(session, args.dsl, args.seed)))
+  );
+  server2.tool(
+    "reseedProgram",
+    "Give a Noisemaker DSL program a fresh random seed and return it as setProgramSeed does. Built-in effects only. Needs a Noisemaker 2 renderer.",
+    reseedProgramSchema,
+    async (args) => toolResult(await withSession((session) => runSeedOperation(session, args.dsl, freshSeed())))
   );
 }
 
@@ -45332,7 +45436,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.5.4";
+var VERSION = "0.6.0";
 
 // src/server.ts
 function createShadeServer() {
@@ -45348,6 +45452,7 @@ function createShadeServer() {
   registerTestNoPassthrough(server2);
   registerTestPixelParity(server2);
   registerRunDslProgram(server2);
+  registerSeedTools(server2);
   registerCheckEffectStructure(server2);
   registerCheckAlgEquiv(server2);
   registerCompareShaders(server2);
