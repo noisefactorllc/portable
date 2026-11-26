@@ -220,6 +220,7 @@ try {
 
     // A filter inherits the upstream atlas dimensions and forwards geometry
     // without declaring a sampler for metadata-only passthrough.
+    const GEOMETRY_CONSUMER_DSL = 'search synth3d, user, render\nshape3d(volumeSize: 16).volumeColor3d().renderLandscape3d().write(o0)\nrender(o0)';
     await page.goto(`http://127.0.0.1:${server.address().port}/viewer/?effect=../examples/volumeColor3d/`);
     await page.waitForFunction(() => ['success', 'error'].includes(document.querySelector('#status').className));
     assert.equal(await page.locator('#status').getAttribute('class'), 'success', await page.locator('#status').textContent());
@@ -237,20 +238,39 @@ try {
             const input = await p.backend.readPixels(filter.inputs.volumeInput);
             const outputId = Object.values(filter.outputs)[0];
             const output = await p.backend.readPixels(outputId);
-            const geometryId = render.inputs.analyticalGeo;
-            const geometry = geometryId && await p.backend.readPixels(geometryId);
             const frame = await p.backend.readPixels(p.surfaces.get('o0').read);
             r.setUniform('amount', 0); await r.render(0);
             const passthrough = await p.backend.readPixels(outputId);
             return { width: output.width, height: output.height, input: Array.from(input.data),
-                output: Array.from(output.data), geometry: geometry && Array.from(geometry.data),
-                geometryId, passes: p.graph.passes.map(pass => ({ inputs: pass.inputs, outputs: pass.outputs })),
+                output: Array.from(output.data),
                 frame: Array.from(frame.data), passthrough: Array.from(passthrough.data) };
         });
+        // render3d declares no geometry input, so the forwarded geometry is
+        // observed at a renderer that reads it: the same chain into
+        // renderLandscape3d. The original program is compiled again after.
+        const forwarded = await page.evaluate(async (dsl) => {
+            const r = window.__portableCanvasRenderer;
+            const original = r.currentDsl;
+            // The viewer loads only the effects of its own program.
+            await r.loadEffects(['render/renderLandscape3d']);
+            try {
+                await r.compile(dsl);
+                r.stop(); await r.render(0);
+                const p = r.pipeline;
+                const consumer = p.graph.passes.find(pass => pass.inputs.analyticalGeo);
+                const geometryId = consumer?.inputs.analyticalGeo;
+                const geometry = geometryId && await p.backend.readPixels(geometryId);
+                return { geometryId, geometry: geometry && Array.from(geometry.data),
+                    producers: p.graph.passes.filter(pass => pass !== consumer && Object.values(pass.outputs).includes(geometryId)).map(pass => pass.effectKey) };
+            } finally {
+                await r.compile(original);
+                r.stop(); await r.render(0);
+            }
+        }, GEOMETRY_CONSUMER_DSL);
         assert.equal(filtered.width, 16, 'filter inherits volume width');
         assert.equal(filtered.height, 256, 'filter inherits atlas height');
-        assert(filtered.geometry?.some((v,i) => i % 4 === 3 && v > 0), 'upstream analytical geometry reaches renderer');
-        assert(filtered.passes.some(pass => Object.values(pass.outputs).includes(filtered.geometryId)), 'forwarded geometry is produced upstream');
+        assert(forwarded.geometry?.some((v,i) => i % 4 === 3 && v > 0), 'upstream analytical geometry reaches renderer');
+        assert(forwarded.producers.length > 0, 'forwarded geometry is produced upstream');
         assert.deepEqual(filtered.output.filter((_,i) => i % 4 === 0 || i % 4 === 3),
             filtered.input.filter((_,i) => i % 4 === 0 || i % 4 === 3), 'filter preserves density and alpha');
         assert(filtered.output.some((v,i) => v !== filtered.input[i]), 'tint modifies voxel colors');
