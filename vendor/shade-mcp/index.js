@@ -29428,6 +29428,9 @@ var checkEffectStructureSchema = {
 function checkCamelCase(name) {
   return /^[a-z][a-zA-Z0-9]*$/.test(name);
 }
+function checkIndexedName(name) {
+  return /^[a-z][a-zA-Z0-9]*[0-9]_[a-z][a-zA-Z0-9]*$/.test(name);
+}
 async function checkEffectStructure(effectId) {
   const config3 = getConfig();
   const effectDir = resolveEffectDir(effectId, config3.effectsDir);
@@ -29459,7 +29462,7 @@ async function checkEffectStructure(effectId) {
   }
   const INTERNAL = /* @__PURE__ */ new Set(["channels", "time", "resolution", "mouse"]);
   for (const [name, spec] of Object.entries(def.globals || {})) {
-    if (!checkCamelCase(name)) {
+    if (!checkCamelCase(name) && !checkIndexedName(name)) {
       issues.namingIssues.push({ type: "global", name, reason: "Must be camelCase" });
     }
     if (INTERNAL.has(spec.uniform || name)) {
@@ -44514,14 +44517,8 @@ function registerAnalyzeEffect(server2) {
       }
       const output2 = {
         effectId: args.effect_id,
-        name: def.name,
-        description: def.description,
-        namespace: def.namespace,
+        ...def,
         tags: def.tags || [],
-        globals: def.globals,
-        passes: def.passes,
-        format: def.format,
-        ...def.partial && { partial: true, partialReasons: def.partialReasons },
         shaders
       };
       return toolResult(output2);
@@ -45507,7 +45504,7 @@ function registerGenerateManifest(server2) {
 }
 
 // src/version.ts
-var VERSION = "0.7.0";
+var VERSION = "0.7.1";
 
 // src/server.ts
 function createShadeServer() {
